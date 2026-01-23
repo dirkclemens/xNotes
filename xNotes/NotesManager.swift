@@ -50,6 +50,20 @@ class NotesManager: ObservableObject {
         }
     }
     
+    func updateColor(for tabId: UUID, color: Double) {
+        if let index = tabs.firstIndex(where: { $0.id == tabId }) {
+            tabs[index].color = color
+            saveWithDelay()
+        }
+    }
+    
+    func updateTitle(for tabId: UUID, title: String?) {
+        if let index = tabs.firstIndex(where: { $0.id == tabId }) {
+            tabs[index].title = title
+            saveWithDelay()
+        }
+    }
+    
     private func saveWithDelay() {
         saveTask?.cancel()
         saveTask = Task {
@@ -62,15 +76,17 @@ class NotesManager: ObservableObject {
     }
     
     private func saveTabs() {
-        if let encoded = try? JSONEncoder().encode(tabs) {
+        let codableTabs = tabs.map { tab in
+            NoteTab(id: tab.id, content: tab.content, color: tab.color, title: tab.title)
+        }
+        if let encoded = try? JSONEncoder().encode(codableTabs) {
             UserDefaults.standard.set(encoded, forKey: storageKey)
         }
     }
-    
     private func loadTabs() {
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([NoteTab].self, from: data) {
-            tabs = decoded
+            tabs = decoded.map { NoteTab(id: $0.id, content: $0.content, color: $0.color, title: $0.title) }
         }
     }
 }
