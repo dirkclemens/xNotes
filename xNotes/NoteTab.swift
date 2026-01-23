@@ -14,12 +14,13 @@ class NoteTab: ObservableObject, Identifiable, Codable {
     @Published var color: Double // hue 0...1
     @Published var title: String?
     
-    init(id: UUID = UUID(), content: String = "", color: Double = Double.random(in: 0...1), title: String? = nil) {
+    init(id: UUID = UUID(), content: String = "", color: Double = 0.0, title: String? = nil) {
         self.id = id
         self.content = content
-        self.color = color
+        self.color = color // 0.0 = Standardfarbe (rot)
         self.title = title
     }
+    
     // Codable
     enum CodingKeys: String, CodingKey { case id, content, color, title }
     required convenience init(from decoder: Decoder) throws {

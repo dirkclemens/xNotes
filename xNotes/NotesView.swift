@@ -30,20 +30,16 @@ struct NotesView: View {
 
 struct TabBarView: View {
     @ObservedObject var notesManager: NotesManager
-    
-    func colorForTab(tab: NoteTab) -> Color {
-        Color(hue: tab.color, saturation: 0.8, brightness: 0.9)
-    }
-    
+    @AppStorage("keepWindowOpen") private var keepWindowOpen: Bool = false
     var body: some View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 2) {
                     ForEach(Array(notesManager.tabs.enumerated()), id: \.element.id) { index, tab in
                         TabButton(
-                            title: tab.title ?? "Tab \(index + 1)",
+                            tab: tab,
+                            index: index,
                             isSelected: notesManager.selectedTabId == tab.id,
-                            backgroundColor: colorForTab(tab: tab),
                             onSelect: { notesManager.selectedTabId = tab.id },
                             onClose: notesManager.tabs.count > 1 ? { notesManager.removeTab(tab) } : nil,
                             onEditTitle: { (newTitle: String?) in notesManager.updateTitle(for: tab.id, title: newTitle) },
@@ -54,14 +50,23 @@ struct TabBarView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
             }
-
             Button(action: { notesManager.addTab() }) {
                 Image(systemName: "plus")
                     .font(.system(size: 11))
                     .frame(width: 16, height: 16)
             }
             .cornerRadius(16)
-            .buttonStyle(.glassProminent)
+            .buttonStyle(.glass) //.glassProminent)
+            .padding(.trailing, 8)
+            Button(action: { keepWindowOpen.toggle() }) {
+                Image(systemName: keepWindowOpen ? "pin.fill" : "pin")
+                    .font(.system(size: 13))
+                    .frame(width: 16, height: 16)
+                    .foregroundColor(keepWindowOpen ? .accentColor : .secondary)
+            }
+            .help(keepWindowOpen ? "Fenster bleibt immer sichtbar" : "Fenster schließt bei Fokusverlust")
+            .cornerRadius(16)
+            .buttonStyle(.glass)
             .padding(.trailing, 8)
         }
         .padding(4)
@@ -71,9 +76,9 @@ struct TabBarView: View {
 }
 
 struct TabButton: View {
-    let title: String
+    let tab: NoteTab
+    let index: Int
     let isSelected: Bool
-    let backgroundColor: Color
     let onSelect: () -> Void
     let onClose: (() -> Void)?
     let onEditTitle: (String?) -> Void
@@ -82,33 +87,23 @@ struct TabButton: View {
     @State private var isEditingTitle = false
     @State private var editedTitle: String = ""
     @State private var showColorPicker = false
+    @State private var showCloseConfirmation = false
     var body: some View {
         HStack(spacing: 4) {
-
             Button(action: { showColorPicker.toggle() }) {
                 Image(systemName: "paintpalette")
                     .font(.system(size: 10))
             }
             .buttonStyle(.plain)
             .popover(isPresented: $showColorPicker) {
-                ColorPicker(
-                    "Farbe wählen",
-                    selection: Binding(
-                        get: {
-                            var hue: CGFloat = 0; var s: CGFloat = 0; var b: CGFloat = 0; var a: CGFloat = 0
-                            NSColor(backgroundColor).usingColorSpace(.deviceRGB)?.getHue(&hue, saturation: &s, brightness: &b, alpha: &a)
-                            return Color(hue: Double(hue), saturation: 1, brightness: 1)
-                        },
+                ColorPicker("Farbe wählen", selection: Binding(
+                        get: { Color(hue: tab.color, saturation: 0.8, brightness: 0.9) },
                         set: { newColor in
-                            // Convert SwiftUI Color to NSColor and extract hue
-                            if let nsColor = NSColor(newColor).usingColorSpace(.deviceRGB) {
-                                var hue: CGFloat = 0
-                                var sat: CGFloat = 0
-                                var bri: CGFloat = 0
-                                var alpha: CGFloat = 0
-                                nsColor.getHue(&hue, saturation: &sat, brightness: &bri, alpha: &alpha)
-                                onEditColor(Double(hue))
-                            }
+                            var hue: CGFloat = 0
+                            var saturation: CGFloat = 0
+                            var brightness: CGFloat = 0
+                            NSColor(newColor).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: nil)
+                            onEditColor(Double(hue))
                         }
                     ),
                     supportsOpacity: false
@@ -116,7 +111,6 @@ struct TabButton: View {
                 .frame(width: 180)
                 .padding()
             }
-
             if isEditingTitle {
                 TextField("Tab", text: $editedTitle, onCommit: {
                     onEditTitle(editedTitle.isEmpty ? nil : editedTitle)
@@ -124,30 +118,35 @@ struct TabButton: View {
                 })
                 .frame(width: 70)
             } else {
-                Text(title)
+                Text(tab.title ?? "Tab \(index + 1)")
                     .lineLimit(1)
+                    .font(isSelected ? .system(size: 12, weight: .bold) : .system(size: 12, weight: .regular))
                     .onTapGesture(count: 2) {
-                        editedTitle = title
+                        editedTitle = tab.title ?? "Tab \(index + 1)"
                         isEditingTitle = true
                     }
             }
-
             if let onClose = onClose {
-                Button(action: onClose) {
+                Button(action: { showCloseConfirmation = true }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 8))
                         .foregroundColor(.secondary)
                 }
-                //.frame(width: 10, height: 10)
                 .padding(.leading, 3)
                 .padding(.trailing, -4)
                 .buttonStyle(.glassProminent)
                 .opacity(isHovered ? 1 : 0)
+                .alert("Tab wirklich schließen?", isPresented: $showCloseConfirmation) {
+                    Button("Abbrechen", role: .cancel) {}
+                    Button("Schließen", role: .destructive) {
+                        onClose()
+                    }
+                }
             }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(backgroundColor)
+        .background(Color(hue: tab.color, saturation: 0.8, brightness: 0.9))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(isSelected ? Color.black : Color.clear, lineWidth: isSelected ? 4 : 0)
