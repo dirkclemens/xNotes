@@ -40,6 +40,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if popover?.isShown == true {
                 popover?.performClose(nil)
             } else {
+                // Wert immer aktuell auslesen:
+                let keepOpen = UserDefaults.standard.bool(forKey: "keepWindowOpen")
+                popover?.behavior = keepOpen ? .applicationDefined : .transient
                 popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
                 popover?.contentViewController?.view.window?.makeKey()
             }

@@ -88,6 +88,8 @@ struct TabButton: View {
     @State private var editedTitle: String = ""
     @State private var showColorPicker = false
     @State private var showCloseConfirmation = false
+    // Palette mit 10 Hue-Werten
+    let colorPalette: [Double] = [0.0, 0.06, 0.12, 0.17, 0.33, 0.5, 0.6, 0.7, 0.8, 0.9]
     var body: some View {
         HStack(spacing: 4) {
             Button(action: { showColorPicker.toggle() }) {
@@ -96,20 +98,24 @@ struct TabButton: View {
             }
             .buttonStyle(.plain)
             .popover(isPresented: $showColorPicker) {
-                ColorPicker("Farbe wählen", selection: Binding(
-                        get: { Color(hue: tab.color, saturation: 0.8, brightness: 0.9) },
-                        set: { newColor in
-                            var hue: CGFloat = 0
-                            var saturation: CGFloat = 0
-                            var brightness: CGFloat = 0
-                            NSColor(newColor).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: nil)
-                            onEditColor(Double(hue))
+                HStack(spacing: 8) {
+                    ForEach(colorPalette, id: \ .self) { hue in
+                        Button(action: {
+                            onEditColor(hue)
+                            showColorPicker = false
+                        }) {
+                            Circle()
+                                .fill(Color(hue: hue, saturation: 0.99, brightness: 0.99))
+                                .frame(width: 28, height: 28)
+                                .overlay(
+                                    Circle()
+                                        .stroke(hue == tab.color ? Color.black : Color.clear, lineWidth: hue == tab.color ? 3 : 0)
+                                )
                         }
-                    ),
-                    supportsOpacity: false
-                )
-                .frame(width: 180)
-                .padding()
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(12)
             }
             if isEditingTitle {
                 TextField("Tab", text: $editedTitle, onCommit: {
