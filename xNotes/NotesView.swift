@@ -1,4 +1,3 @@
-//  xNotes
 //
 //  Created by Dirk Clemens on 15.01.26
 //
@@ -14,6 +13,8 @@ struct NotesView: View {
         VStack(spacing: 0) {
             TabBarView(notesManager: notesManager)
             
+            Divider().frame(height: 1).background(.windowBackground)
+            
             if let selectedId = notesManager.selectedTabId,
                let tab = notesManager.tabs.first(where: { $0.id == selectedId }) {
                 TextEditorView(
@@ -23,17 +24,23 @@ struct NotesView: View {
                     )
                 )
             }
+
+//            Divider().frame(height: 1).background(.windowBackground)
+//            Spacer().frame(height: 20)
         }
-        .frame(width: 600, height: 400)
+//        .frame(width: 600, height: 400)
+        .background(.windowBackground)
     }
 }
 
 struct TabBarView: View {
     @ObservedObject var notesManager: NotesManager
     @AppStorage("keepWindowOpen") private var keepWindowOpen: Bool = false
+    let buttonSize: CGFloat = 18
+    
     var body: some View {
         HStack(spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: false) {
+            ScrollView(.horizontal, showsIndicators: true) {
                 HStack(spacing: 2) {
                     ForEach(Array(notesManager.tabs.enumerated()), id: \.element.id) { index, tab in
                         TabButton(
@@ -45,33 +52,34 @@ struct TabBarView: View {
                             onEditTitle: { (newTitle: String?) in notesManager.updateTitle(for: tab.id, title: newTitle) },
                             onEditColor: { newColor in notesManager.updateColor(for: tab.id, color: newColor) }
                         )
+                        .padding(2)
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
             }
+//            .background(.ultraThinMaterial)
+            .background(.regularMaterial)
+            .cornerRadius(16)
+            
+            // Add Tab Button
             Button(action: { notesManager.addTab() }) {
                 Image(systemName: "plus")
                     .font(.system(size: 11))
-                    .frame(width: 16, height: 16)
+                    .frame(width: buttonSize, height: buttonSize)
             }
             .cornerRadius(16)
-            .buttonStyle(.glass) //.glassProminent)
-            .padding(.trailing, 8)
+            
+            // Keep Window Open Toggle
             Button(action: { keepWindowOpen.toggle() }) {
                 Image(systemName: keepWindowOpen ? "pin.fill" : "pin")
                     .font(.system(size: 13))
-                    .frame(width: 16, height: 16)
+                    .frame(width: buttonSize, height: buttonSize)
                     .foregroundColor(keepWindowOpen ? .accentColor : .secondary)
             }
             .help(keepWindowOpen ? "Fenster bleibt immer sichtbar" : "Fenster schließt bei Fokusverlust")
             .cornerRadius(16)
-            .buttonStyle(.glass)
-            .padding(.trailing, 8)
         }
-        .padding(4)
-        .background(Color(NSColor.windowBackgroundColor))
-//        .background(Color(.gray.opacity(0.9)))
+        .padding(10)
+        .background(.windowBackground)
     }
 }
 
@@ -92,14 +100,64 @@ struct TabButton: View {
     let colorPalette: [Double] = [0.0, 0.06, 0.12, 0.17, 0.33, 0.5, 0.6, 0.7, 0.8, 0.9]
     var body: some View {
         HStack(spacing: 4) {
+            // Close Button
+            if let onClose = onClose {
+                Button(action: { showCloseConfirmation = true }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8))
+                        .foregroundColor(.secondary)
+                }
+                .frame(width: 12, height: 12)
+                .buttonStyle(.plain)
+                .opacity(isSelected ? 1.0 : 0.0)
+                .alert("Tab wirklich schließen?", isPresented: $showCloseConfirmation) {
+                    Button("Abbrechen", role: .cancel) {}
+                    Button("Schließen", role: .destructive) {
+                        onClose()
+                    }
+                }
+            }
+            
+            Spacer().frame(width: onClose != nil ? 0 : 12)
+            
+            // Color Indicator
+            Circle()
+                .fill(Color(hue: tab.color, saturation: 0.99, brightness: 0.99))
+                .frame(width: 8, height: 8)
+            
+            // Title (editable)
+            if isEditingTitle {
+                TextField("Tab", text: $editedTitle, onCommit: {
+                    onEditTitle(editedTitle.isEmpty ? nil : editedTitle)
+                    isEditingTitle = false
+                })
+                .frame(width: 70)
+            } else {
+                Text(tab.title ?? "Tab \(index + 1)")
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(isSelected ? .primary : .secondary)
+                    .onTapGesture(count: 2) {
+                        editedTitle = tab.title ?? "Tab \(index + 1)"
+                        isEditingTitle = true
+                    }
+            }
+            
+            Spacer()
+            
+            // Color Picker Button
             Button(action: { showColorPicker.toggle() }) {
                 Image(systemName: "paintpalette")
-                    .font(.system(size: 10))
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
             }
+            .frame(width: 12, height: 12)
             .buttonStyle(.plain)
+            .opacity(isSelected ? 1.0 : 0.0)
             .popover(isPresented: $showColorPicker) {
                 HStack(spacing: 8) {
-                    ForEach(colorPalette, id: \ .self) { hue in
+                    ForEach(colorPalette, id: \.self) { hue in
                         Button(action: {
                             onEditColor(hue)
                             showColorPicker = false
@@ -117,46 +175,10 @@ struct TabButton: View {
                 }
                 .padding(12)
             }
-            if isEditingTitle {
-                TextField("Tab", text: $editedTitle, onCommit: {
-                    onEditTitle(editedTitle.isEmpty ? nil : editedTitle)
-                    isEditingTitle = false
-                })
-                .frame(width: 70)
-            } else {
-                Text(tab.title ?? "Tab \(index + 1)")
-                    .lineLimit(1)
-                    .font(isSelected ? .system(size: 12, weight: .bold) : .system(size: 12, weight: .regular))
-                    .onTapGesture(count: 2) {
-                        editedTitle = tab.title ?? "Tab \(index + 1)"
-                        isEditingTitle = true
-                    }
-            }
-            if let onClose = onClose {
-                Button(action: { showCloseConfirmation = true }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 8))
-                        .foregroundColor(.secondary)
-                }
-                .padding(.leading, 3)
-                .padding(.trailing, -4)
-                .buttonStyle(.glassProminent)
-                .opacity(isHovered ? 1 : 0)
-                .alert("Tab wirklich schließen?", isPresented: $showCloseConfirmation) {
-                    Button("Abbrechen", role: .cancel) {}
-                    Button("Schließen", role: .destructive) {
-                        onClose()
-                    }
-                }
-            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color(hue: tab.color, saturation: 0.8, brightness: 0.9))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isSelected ? Color.black : Color.clear, lineWidth: isSelected ? 4 : 0)
-        )
+        .background(isSelected ? Color(NSColor.windowBackgroundColor) : .clear)
         .cornerRadius(12)
         .onHover { hovering in
             isHovered = hovering
@@ -170,13 +192,20 @@ struct TabButton: View {
 struct TextEditorView: View {
     @Binding var content: String
     @State private var localContent: String = ""
+    @FocusState private var isFocused: Bool
     
     var body: some View {
         TextEditor(text: $localContent)
-            .font(.system(size: 14))
-            .padding(1)
+            .focused($isFocused)
+            //.font(.system(size: 14, design: .monospaced))
+            .font(.custom("SF Mono", size: 14)) // or your exact Spot Mono name
+            .padding(.horizontal, 4)
+            .padding(.bottom, 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onAppear { localContent = content }
+            .onAppear { localContent = content; isFocused = true }
             .onChange(of: localContent) { _, newValue in content = newValue }
+            .onChange(of: content) { _, newValue in localContent = newValue }
+            .onChange(of: content) { _, _ in isFocused = true }
     }
 }
+
