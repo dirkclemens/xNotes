@@ -5,6 +5,7 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import Combine
 
 struct NotesView: View {
     @ObservedObject var notesManager: NotesManager
@@ -28,7 +29,7 @@ struct NotesView: View {
 //            Divider().frame(height: 1).background(.windowBackground)
 //            Spacer().frame(height: 20)
         }
-//        .frame(width: 600, height: 400)
+        .frame(width: 600, height: 400)
         .background(.windowBackground)
     }
 }
@@ -52,7 +53,8 @@ struct TabBarView: View {
                             onEditTitle: { (newTitle: String?) in notesManager.updateTitle(for: tab.id, title: newTitle) },
                             onEditColor: { newColor in notesManager.updateColor(for: tab.id, color: newColor) }
                         )
-                        .padding(2)
+//                        .shadow(color: notesManager.selectedTabId == tab.id ? Color.black.opacity(0.4) : Color.clear, radius: notesManager.selectedTabId == tab.id ? 8 : 0, x: -1, y: 0)
+                        .padding(1)
                     }
                 }
             }
@@ -178,8 +180,11 @@ struct TabButton: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(isSelected ? Color(NSColor.windowBackgroundColor) : .clear)
-        .cornerRadius(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(isSelected ? AnyShapeStyle(Color(NSColor.windowBackgroundColor)) : AnyShapeStyle(.regularMaterial))
+                .shadow(color: isSelected ? .gray : .clear, radius: isSelected ? 2 : 0, x: 0, y: isSelected ? 2 : 0)
+        )
         .onHover { hovering in
             isHovered = hovering
         }
@@ -191,21 +196,32 @@ struct TabButton: View {
 
 struct TextEditorView: View {
     @Binding var content: String
-    @State private var localContent: String = ""
     @FocusState private var isFocused: Bool
     
+    @AppStorage("editorFontName") private var editorFontName: String = "SF Mono"
+    @AppStorage("editorFontSize") private var editorFontSize: Double = 14
+    
     var body: some View {
-        TextEditor(text: $localContent)
+        TextEditor(text: $content)
             .focused($isFocused)
-            //.font(.system(size: 14, design: .monospaced))
-            .font(.custom("SF Mono", size: 14)) // or your exact Spot Mono name
+            .font(selectedEditorFont)
+            .lineSpacing(2)
+            .multilineTextAlignment(.leading)
             .padding(.horizontal, 4)
             .padding(.bottom, 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onAppear { localContent = content; isFocused = true }
-            .onChange(of: localContent) { _, newValue in content = newValue }
-            .onChange(of: content) { _, newValue in localContent = newValue }
-            .onChange(of: content) { _, _ in isFocused = true }
+            .onAppear { isFocused = true }
+    }
+    
+    private var selectedEditorFont: Font {
+        switch editorFontName {
+        case "__system__":
+            return .system(size: CGFloat(editorFontSize))
+        case "__systemMonospaced__":
+            return .system(size: CGFloat(editorFontSize), design: .monospaced)
+        default:
+            return .custom(editorFontName, size: CGFloat(editorFontSize))
+        }
     }
 }
 

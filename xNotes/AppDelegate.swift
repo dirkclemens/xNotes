@@ -51,19 +51,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showMenu() {
         let menu = NSMenu()
+        
         let launchItem = NSMenuItem(title: "Beim Login starten", action: #selector(toggleLaunchOnLogin), keyEquivalent: "l")
         launchItem.state = isLaunchOnLoginEnabled() ? .on : .off
         launchItem.target = self
         menu.addItem(launchItem)
+        
         let exportQuickItem = NSMenuItem(title: "Export", action: #selector(exportAllNotesQuick), keyEquivalent: "x")
         exportQuickItem.target = self
         menu.addItem(exportQuickItem)
+        
         let exportItem = NSMenuItem(title: "Export nach...", action: #selector(exportAllNotes), keyEquivalent: "e")
         exportItem.target = self
         menu.addItem(exportItem)
+        
         let quitItem = NSMenuItem(title: "Beenden", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
+        
         statusItem?.menu = menu
         statusItem?.button?.performClick(nil)
         statusItem?.menu = nil
@@ -128,26 +133,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc private func exportAllNotesQuick2() {
+    @objc private func exportAllNotesQuick() {
         let fm = FileManager.default
         let docs = fm.urls(for: .desktopDirectory, in: .userDomainMask).first!
         let fileURL = docs.appendingPathComponent("xNotes-Export.txt")
         writeExportFile(to: fileURL)
-        let alert = NSAlert()
-        alert.messageText = "Export abgeschlossen"
-        alert.informativeText = "Die Datei wurde gespeichert unter:\n\(fileURL.path)"
-        alert.runModal()
-    }
-    
-    @objc private func exportAllNotesQuick() {
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
-        let fileURL = home.appendingPathComponent("Desktop/xNotes-Export.txt")
-        writeExportFile(to: fileURL)
-        let alert = NSAlert()
-        alert.messageText = "Export abgeschlossen"
-        alert.informativeText = "Die Datei wurde gespeichert unter:\n\(fileURL.path)"
-        alert.runModal()
+//        let alert = NSAlert()
+//        alert.messageText = "Export abgeschlossen"
+//        alert.informativeText = "Die Datei wurde gespeichert unter:\n\(fileURL.path)"
+//        alert.runModal()
     }
 
     private func writeExportFile(to url: URL) {
