@@ -45,6 +45,7 @@ struct TabBarView: View {
                 HStack(spacing: 2) {
                     ForEach(Array(notesManager.tabs.enumerated()), id: \.element.id) { index, tab in
                         TabButton(
+                            notesManager: notesManager,
                             tab: tab,
                             index: index,
                             isSelected: notesManager.selectedTabId == tab.id,
@@ -53,15 +54,15 @@ struct TabBarView: View {
                             onEditTitle: { (newTitle: String?) in notesManager.updateTitle(for: tab.id, title: newTitle) },
                             onEditColor: { newColor in notesManager.updateColor(for: tab.id, color: newColor) }
                         )
-//                        .shadow(color: notesManager.selectedTabId == tab.id ? Color.black.opacity(0.4) : Color.clear, radius: notesManager.selectedTabId == tab.id ? 8 : 0, x: -1, y: 0)
                         .padding(1)
                     }
                 }
             }
-//            .background(.ultraThinMaterial)
-            .background(.regularMaterial)
+            .background(Color(red: 0.937, green: 0.937, blue: 0.937))
+//            .background(.regularMaterial)
+//            .background(.ultraThickMaterial)
             .cornerRadius(16)
-            
+                        
             // Add Tab Button
             Button(action: { notesManager.addTab() }) {
                 Image(systemName: "plus")
@@ -86,6 +87,7 @@ struct TabBarView: View {
 }
 
 struct TabButton: View {
+    @ObservedObject var notesManager: NotesManager
     let tab: NoteTab
     let index: Int
     let isSelected: Bool
@@ -182,7 +184,8 @@ struct TabButton: View {
         .padding(.vertical, 4)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(isSelected ? AnyShapeStyle(Color(NSColor.windowBackgroundColor)) : AnyShapeStyle(.regularMaterial))
+                .fill(isSelected ? AnyShapeStyle(Color(NSColor.windowBackgroundColor)) :
+                        AnyShapeStyle(Color(red: 0.937, green: 0.937, blue: 0.937)))//AnyShapeStyle(.regularMaterial))
                 .shadow(color: isSelected ? .gray : .clear, radius: isSelected ? 2 : 0, x: 0, y: isSelected ? 2 : 0)
         )
         .onHover { hovering in
