@@ -2,6 +2,8 @@
 
 xNotes is a lightweight macOS menu bar notes app. It keeps notes in tabs, supports quick export, and offers a minimal settings panel for editor preferences.
 
+![screenshot](./xNotes_screenshot.png)
+
 ## Features
 - Menu bar popover for fast access
 - Multiple tabs with titles and colors
