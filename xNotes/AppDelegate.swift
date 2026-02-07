@@ -45,8 +45,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 popover?.behavior = keepOpen ? .applicationDefined : .transient
                 popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
                 popover?.contentViewController?.view.window?.makeKey()
+                DispatchQueue.main.async { [weak self] in
+                    self?.configurePopoverWindow()
+                }
             }
         }
+    }
+
+    private func configurePopoverWindow() {
+        guard let window = popover?.contentViewController?.view.window else { return }
+        window.styleMask.insert(.resizable)
+        window.minSize = NSSize(width: 420, height: 280)
+        window.setFrameAutosaveName("xNotesPopoverFrame")
+        window.setFrameUsingName("xNotesPopoverFrame")
     }
 
     private func showMenu() {
@@ -144,21 +155,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 //        alert.runModal()
     }
 
-    private func writeExportFile(to url: URL) {
+    private struct ExportNote {
+        let title: String
+        let content: String
+    }
+
+    private func exportSnapshot() -> [ExportNote] {
         let notes = notesManager.tabs
-        var exportText = ""
-        for (i, tab) in notes.enumerated() {
-            let title = tab.title ?? "Tab \(i + 1)"
-            exportText += "===== \(title) =====\n"
-            exportText += tab.content + "\n\n"
+        return notes.enumerated().map { index, tab in
+            let title = tab.title ?? "Tab \(index + 1)"
+            return ExportNote(title: title, content: tab.content)
         }
-        do {
-            try exportText.write(to: url, atomically: true, encoding: .utf8)
-        } catch {
-            let alert = NSAlert()
-            alert.messageText = "Export fehlgeschlagen"
-            alert.informativeText = error.localizedDescription
-            alert.runModal()
+    }
+
+    private func writeExportFile(to url: URL) {
+        let snapshot = exportSnapshot()
+        DispatchQueue.global(qos: .userInitiated).async {
+            var exportText = ""
+            for note in snapshot {
+                exportText += "===== \(note.title) =====\n"
+                exportText += note.content + "\n\n"
+            }
+            do {
+                try exportText.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                DispatchQueue.main.async {
+                    let alert = NSAlert()
+                    alert.messageText = "Export fehlgeschlagen"
+                    alert.informativeText = error.localizedDescription
+                    alert.runModal()
+                }
+            }
         }
     }
 }
