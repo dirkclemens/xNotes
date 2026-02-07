@@ -8,6 +8,7 @@
 import Foundation
 import Combine
 
+@MainActor
 class NotesManager: ObservableObject {
     @Published var tabs: [NoteTab] = []
     @Published var selectedTabId: UUID?
@@ -63,6 +64,13 @@ class NotesManager: ObservableObject {
             saveWithDelay()
         }
     }
+
+    func updateLocked(for tabId: UUID, isLocked: Bool) {
+        if let index = tabs.firstIndex(where: { $0.id == tabId }) {
+            tabs[index].isLocked = isLocked
+            saveWithDelay()
+        }
+    }
     
     private func saveWithDelay() {
         saveTask?.cancel()
@@ -77,7 +85,7 @@ class NotesManager: ObservableObject {
     
     private func saveTabs() {
         let codableTabs = tabs.map { tab in
-            NoteTab(id: tab.id, content: tab.content, color: tab.color, title: tab.title)
+            NoteTab(id: tab.id, content: tab.content, color: tab.color, title: tab.title, isLocked: tab.isLocked)
         }
         if let encoded = try? JSONEncoder().encode(codableTabs) {
             UserDefaults.standard.set(encoded, forKey: storageKey)
@@ -86,7 +94,7 @@ class NotesManager: ObservableObject {
     private func loadTabs() {
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([NoteTab].self, from: data) {
-            tabs = decoded.map { NoteTab(id: $0.id, content: $0.content, color: $0.color, title: $0.title) }
+            tabs = decoded.map { NoteTab(id: $0.id, content: $0.content, color: $0.color, title: $0.title, isLocked: $0.isLocked) }
         }
     }
 }
