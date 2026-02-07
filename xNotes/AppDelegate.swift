@@ -75,7 +75,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let exportItem = NSMenuItem(title: "Export nach...", action: #selector(exportAllNotes), keyEquivalent: "e")
         exportItem.target = self
         menu.addItem(exportItem)
-        
+
         let quitItem = NSMenuItem(title: "Beenden", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
@@ -126,6 +126,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSLog("Launch at login management is unavailable on this macOS version.")
         }
     }
+
   
     @objc private func exportAllNotes() {
         // Ensure UI work happens on main queue
