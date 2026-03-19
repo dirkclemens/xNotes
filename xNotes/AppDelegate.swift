@@ -13,8 +13,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
     private var notesManager = NotesManager()
+    static let closePopoverNotification = Notification.Name("xNotesClosePopover")
+    static let reopenPopoverNotification = Notification.Name("xNotesReopenPopover")
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // no Dock Icon
+        NSApp.setActivationPolicy(.accessory)
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusItem?.button {
@@ -28,6 +33,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         popover?.contentSize = NSSize(width: 600, height: 400)
         popover?.behavior = .transient
         popover?.contentViewController = NSHostingController(rootView: NotesView(notesManager: notesManager))
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleClosePopover),
+            name: AppDelegate.closePopoverNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleReopenPopover),
+            name: AppDelegate.reopenPopoverNotification,
+            object: nil
+        )
     }
 
     @objc func togglePopover(_ sender: AnyObject?) {
@@ -40,7 +58,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if popover?.isShown == true {
                 popover?.performClose(nil)
             } else {
-                // Wert immer aktuell auslesen:
+                // Read latest setting value.
                 let keepOpen = UserDefaults.standard.bool(forKey: "keepWindowOpen")
                 popover?.behavior = keepOpen ? .applicationDefined : .transient
                 popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
@@ -63,7 +81,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func showMenu() {
         let menu = NSMenu()
         
-        let launchItem = NSMenuItem(title: "Beim Login starten", action: #selector(toggleLaunchOnLogin), keyEquivalent: "l")
+        let launchItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchOnLogin), keyEquivalent: "l")
         launchItem.state = isLaunchOnLoginEnabled() ? .on : .off
         launchItem.target = self
         menu.addItem(launchItem)
@@ -72,17 +90,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         exportQuickItem.target = self
         menu.addItem(exportQuickItem)
         
-        let exportItem = NSMenuItem(title: "Export nach...", action: #selector(exportAllNotes), keyEquivalent: "e")
+        let exportItem = NSMenuItem(title: "Export As...", action: #selector(exportAllNotes), keyEquivalent: "e")
         exportItem.target = self
         menu.addItem(exportItem)
 
-        let quitItem = NSMenuItem(title: "Beenden", action: #selector(quitApp), keyEquivalent: "q")
+        menu.addItem(.separator())
+
+        let exportBackupItem = NSMenuItem(title: "Export Backup...", action: #selector(exportBackup), keyEquivalent: "b")
+        exportBackupItem.target = self
+        menu.addItem(exportBackupItem)
+
+        let importBackupItem = NSMenuItem(title: "Import Backup...", action: #selector(importBackup), keyEquivalent: "i")
+        importBackupItem.target = self
+        menu.addItem(importBackupItem)
+
+        menu.addItem(.separator())
+
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
-        
-        statusItem?.menu = menu
-        statusItem?.button?.performClick(nil)
-        statusItem?.menu = nil
+
+        if let button = statusItem?.button {
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 2), in: button)
+        }
+    }
+
+    @objc private func handleClosePopover() {
+        popover?.performClose(nil)
+    }
+
+    @objc private func handleReopenPopover() {
+        NSApp.activate(ignoringOtherApps: true)
+        guard let button = statusItem?.button else { return }
+        let keepOpen = UserDefaults.standard.bool(forKey: "keepWindowOpen")
+        popover?.behavior = keepOpen ? .applicationDefined : .transient
+        popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover?.contentViewController?.view.window?.makeKey()
+        DispatchQueue.main.async { [weak self] in
+            self?.configurePopoverWindow()
+        }
     }
 
     @objc private func quitApp() {
@@ -134,7 +180,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
             let panel = NSSavePanel()
-            panel.title = "Notizen exportieren"
+            panel.title = "Export Notes"
             panel.allowedContentTypes = [UTType.plainText]
             panel.nameFieldStringValue = "xNotes-Export.txt"
             panel.canCreateDirectories = true
@@ -154,6 +200,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 //        alert.messageText = "Export abgeschlossen"
 //        alert.informativeText = "Die Datei wurde gespeichert unter:\n\(fileURL.path)"
 //        alert.runModal()
+    }
+
+    @objc private func exportBackup() {
+        let panel = NSSavePanel()
+        panel.title = "Export Backup"
+        panel.allowedContentTypes = [UTType.json]
+        panel.nameFieldStringValue = "xNotes-Backup.json"
+        panel.canCreateDirectories = true
+        panel.begin { [weak self] result in
+            guard result == .OK, let url = panel.url, let self else { return }
+            do {
+                let data = try self.notesManager.exportBackupData()
+                try data.write(to: url, options: .atomic)
+            } catch {
+                self.showErrorAlert(title: "Backup Export Failed", error: error)
+            }
+        }
+    }
+
+    @objc private func importBackup() {
+        let panel = NSOpenPanel()
+        panel.title = "Import Backup"
+        panel.allowedContentTypes = [UTType.json]
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.begin { [weak self] result in
+            guard result == .OK, let url = panel.url, let self else { return }
+            do {
+                let data = try Data(contentsOf: url)
+                try self.notesManager.importBackupData(data)
+            } catch {
+                self.showErrorAlert(title: "Backup Import Failed", error: error)
+            }
+        }
     }
 
     private struct ExportNote {
@@ -181,12 +262,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 try exportText.write(to: url, atomically: true, encoding: .utf8)
             } catch {
                 DispatchQueue.main.async {
-                    let alert = NSAlert()
-                    alert.messageText = "Export fehlgeschlagen"
-                    alert.informativeText = error.localizedDescription
-                    alert.runModal()
+                    self.showErrorAlert(title: "Export Failed", error: error)
                 }
             }
         }
+    }
+
+    private func showErrorAlert(title: String, error: Error) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = error.localizedDescription
+        alert.runModal()
     }
 }
