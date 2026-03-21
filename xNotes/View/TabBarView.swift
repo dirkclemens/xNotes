@@ -7,13 +7,11 @@ import SwiftUI
 
 struct TabBarView: View {
     @ObservedObject var notesManager: NotesManager
-    @AppStorage("keepWindowOpen") private var keepWindowOpen: Bool = false
-    let buttonSize: CGFloat = 18
-
+    
     var body: some View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: true) {
-                HStack(spacing: 2) {
+                LazyHStack(spacing: 2) {
                     ForEach(Array(notesManager.tabs.enumerated()), id: \.element.id) { index, tab in
                         TabButton(
                             notesManager: notesManager,
@@ -30,26 +28,26 @@ struct TabBarView: View {
                     }
                 }
             }
+            .scrollClipDisabled(false)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
             .background(Color(red: 0.937, green: 0.937, blue: 0.937))
-            .cornerRadius(16)
-
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .clipped()
+            
             Button(action: { notesManager.addTab() }) {
                 Image(systemName: "plus")
-                    .font(.system(size: 11))
-                    .frame(width: buttonSize, height: buttonSize)
+                    .padding(6)
+                    .background(.windowBackground)
+                    .clipShape(Circle())
+                    .shadow(color: Color.black.opacity(0.12), radius: 2, x: 0, y: 1)
             }
-            .cornerRadius(16)
-
-            Button(action: { keepWindowOpen.toggle() }) {
-                Image(systemName: keepWindowOpen ? "pin.fill" : "pin")
-                    .font(.system(size: 13))
-                    .frame(width: buttonSize, height: buttonSize)
-                    .foregroundColor(keepWindowOpen ? .accentColor : .secondary)
-            }
-            .help(keepWindowOpen ? "Window stays open" : "Window closes on focus loss")
-            .cornerRadius(16)
+            .buttonStyle(.plain)
+            .padding(.leading, 6)
         }
-        .padding(10)
-        .background(.windowBackground)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Color.clear)
+        .frame(height: 36)
     }
 }
