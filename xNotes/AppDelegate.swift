@@ -1,8 +1,6 @@
 //  AppDelegate.swift
 //  xNotes
 //
-//  Created by Dirk Clemens on 15.01.26.
-//
 
 import SwiftUI
 import AppKit
@@ -11,14 +9,28 @@ import UniformTypeIdentifiers
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
-    private var popover: NSPopover?
+    // MENUBAR-PANEL-EXPERIMENT BEGIN
+    private var panel: NSPanel?
+    private var hostingController: NSHostingController<PanelRootView>?
+    private var globalMouseMonitor: Any?
+    private var localMouseMonitor: Any?
+    private var localKeyMonitor: Any?
+    private let panelModeController = PanelModeController()
+    // MENUBAR-PANEL-EXPERIMENT END
     private var notesManager = NotesManager()
+    // TEXT-EXPANSION BEGIN
+    private let textExpansionStore = TextExpansionStore.shared
+    private var textExpansionEngine: TextExpansionEngine?
+    // TEXT-EXPANSION END
+    private var hotkeyManager: HotkeyManager?
+    private var defaultsObserver: NSObjectProtocol?
     static let closePopoverNotification = Notification.Name("xNotesClosePopover")
     static let reopenPopoverNotification = Notification.Name("xNotesReopenPopover")
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // no Dock Icon
-        NSApp.setActivationPolicy(.accessory)
+        // deprecated, use DockIconManager
+//        NSApp.setActivationPolicy(.accessory)
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
@@ -28,11 +40,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
-        
-        popover = NSPopover()
-        popover?.contentSize = NSSize(width: 600, height: 400)
-        popover?.behavior = .transient
-        popover?.contentViewController = NSHostingController(rootView: NotesView(notesManager: notesManager))
+        // MENUBAR-PANEL-EXPERIMENT BEGIN
+        hostingController = NSHostingController(
+            rootView: PanelRootView(
+                notesManager: notesManager,
+                modeController: panelModeController,
+                textExpansionStore: textExpansionStore
+            )
+        )
+        panel = makePanel()
+        // MENUBAR-PANEL-EXPERIMENT END
+        // TEXT-EXPANSION BEGIN
+        textExpansionEngine = TextExpansionEngine(store: textExpansionStore)
+        updateTextExpansionEngine()
+        defaultsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updateTextExpansionEngine()
+        }
+        // TEXT-EXPANSION END
+        hotkeyManager = HotkeyManager { [weak self] in
+            self?.handleHotkeyTriggered()
+        }
+        hotkeyManager?.start()
 
         NotificationCenter.default.addObserver(
             self,
@@ -55,36 +87,180 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         if let button = statusItem?.button {
-            if popover?.isShown == true {
-                popover?.performClose(nil)
+            // MENUBAR-PANEL-EXPERIMENT BEGIN
+            if panel?.isVisible == true {
+                closePanel()
             } else {
-                // Read latest setting value.
-                let keepOpen = UserDefaults.standard.bool(forKey: "keepWindowOpen")
-                popover?.behavior = keepOpen ? .applicationDefined : .transient
-                popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-                popover?.contentViewController?.view.window?.makeKey()
-                DispatchQueue.main.async { [weak self] in
-                    self?.configurePopoverWindow()
-                }
+                showPanel(relativeTo: button)
             }
+            // MENUBAR-PANEL-EXPERIMENT END
         }
     }
 
-    private func configurePopoverWindow() {
-        guard let window = popover?.contentViewController?.view.window else { return }
-        window.styleMask.insert(.resizable)
-        window.minSize = NSSize(width: 420, height: 280)
-        window.setFrameAutosaveName("xNotesPopoverFrame")
-        window.setFrameUsingName("xNotesPopoverFrame")
+    // MENUBAR-PANEL-EXPERIMENT BEGIN
+    private func makePanel() -> NSPanel {
+        let panel = MenubarPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
+            styleMask: [.nonactivatingPanel, .borderless, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+        panel.isMovableByWindowBackground = true
+        panel.isReleasedWhenClosed = false
+        panel.hidesOnDeactivate = false
+        panel.level = .statusBar
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.minSize = NSSize(width: 620, height: 480)
+        panel.setFrameAutosaveName("xNotesPanelFrame")
+        panel.contentViewController = hostingController
+        // Rounded corners for the panel.
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        if let contentView = panel.contentView {
+            contentView.wantsLayer = true
+            contentView.layer?.cornerRadius = 12
+            contentView.layer?.masksToBounds = true
+        }
+        return panel
     }
+
+    private func showPanel(relativeTo button: NSStatusBarButton) {
+        guard let panel else { return }
+        panelModeController.mode = .full
+        let keepOpen = UserDefaults.standard.bool(forKey: "keepWindowOpen")
+
+        let buttonRect = button.window?.convertToScreen(button.bounds) ?? .zero
+        let panelSize = panel.frame.size
+        var x = buttonRect.midX - (panelSize.width / 2)
+        var y = buttonRect.minY - panelSize.height - 6
+
+        if let screen = button.window?.screen {
+            let visible = screen.visibleFrame
+            x = min(max(x, visible.minX), visible.maxX - panelSize.width)
+            y = min(max(y, visible.minY), visible.maxY - panelSize.height)
+        }
+
+        panel.setFrame(NSRect(x: x, y: y, width: panelSize.width, height: panelSize.height), display: true)
+        panel.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        installKeyMonitor()
+        if !keepOpen {
+            installDismissMonitors()
+        }
+    }
+
+    private func showPanel(at anchor: NSPoint) {
+        guard let panel else { return }
+        let keepOpen = UserDefaults.standard.bool(forKey: "keepWindowOpen")
+
+        let panelSize = panel.frame.size
+        let screen = NSScreen.screens.first(where: { $0.frame.contains(anchor) }) ?? NSScreen.main
+        let visible = screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
+
+        var x = anchor.x - (panelSize.width / 2)
+        var y = anchor.y - panelSize.height - 6
+
+        if y < visible.minY {
+            y = anchor.y + 6
+        }
+        if y + panelSize.height > visible.maxY {
+            y = visible.maxY - panelSize.height
+        }
+        if x < visible.minX {
+            x = visible.minX
+        }
+        if x + panelSize.width > visible.maxX {
+            x = visible.maxX - panelSize.width
+        }
+
+        panel.setFrame(NSRect(x: x, y: y, width: panelSize.width, height: panelSize.height), display: true)
+        panel.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        installKeyMonitor()
+        if !keepOpen {
+            installDismissMonitors()
+        }
+    }
+
+    private func handleHotkeyTriggered() {
+        let modeRaw = UserDefaults.standard.string(forKey: "hotkeyMode") ?? PanelMode.full.rawValue
+        panelModeController.mode = PanelMode(rawValue: modeRaw) ?? .full
+        let anchor = SelectionLocator.preferredAnchorPoint() ?? NSEvent.mouseLocation
+        showPanel(at: anchor)
+    }
+
+    private func closePanel() {
+        panel?.orderOut(nil)
+        removeDismissMonitors()
+        removeKeyMonitor()
+    }
+
+    private func installKeyMonitor() {
+        if localKeyMonitor != nil { return }
+        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+            if event.keyCode == 53 { // ESC
+                self?.closePanel()
+                return nil
+            }
+            return event
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let localKeyMonitor {
+            NSEvent.removeMonitor(localKeyMonitor)
+            self.localKeyMonitor = nil
+        }
+    }
+
+    private func installDismissMonitors() {
+        removeDismissMonitors()
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            self?.dismissIfClickOutside()
+        }
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            self?.dismissIfClickOutside()
+            return event
+        }
+    }
+
+    private func removeDismissMonitors() {
+        if let globalMouseMonitor {
+            NSEvent.removeMonitor(globalMouseMonitor)
+            self.globalMouseMonitor = nil
+        }
+        if let localMouseMonitor {
+            NSEvent.removeMonitor(localMouseMonitor)
+            self.localMouseMonitor = nil
+        }
+    }
+
+    private func dismissIfClickOutside() {
+        guard let panel else { return }
+        let mouse = NSEvent.mouseLocation
+        if !panel.frame.contains(mouse) {
+            closePanel()
+        }
+    }
+    // MENUBAR-PANEL-EXPERIMENT END
+
+    // TEXT-EXPANSION BEGIN
+    private func updateTextExpansionEngine() {
+        let enabled = UserDefaults.standard.bool(forKey: "textExpansionEnabled")
+        if enabled {
+            textExpansionEngine?.start()
+        } else {
+            textExpansionEngine?.stop()
+        }
+    }
+    // TEXT-EXPANSION END
 
     private func showMenu() {
         let menu = NSMenu()
-        
-        let launchItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchOnLogin), keyEquivalent: "l")
-        launchItem.state = isLaunchOnLoginEnabled() ? .on : .off
-        launchItem.target = self
-        menu.addItem(launchItem)
         
         let exportQuickItem = NSMenuItem(title: "Export", action: #selector(exportAllNotesQuick), keyEquivalent: "x")
         exportQuickItem.target = self
@@ -116,67 +292,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func handleClosePopover() {
-        popover?.performClose(nil)
+        // MENUBAR-PANEL-EXPERIMENT BEGIN
+        closePanel()
+        // MENUBAR-PANEL-EXPERIMENT END
     }
 
     @objc private func handleReopenPopover() {
+        // MENUBAR-PANEL-EXPERIMENT BEGIN
         NSApp.activate(ignoringOtherApps: true)
         guard let button = statusItem?.button else { return }
-        let keepOpen = UserDefaults.standard.bool(forKey: "keepWindowOpen")
-        popover?.behavior = keepOpen ? .applicationDefined : .transient
-        popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover?.contentViewController?.view.window?.makeKey()
-        DispatchQueue.main.async { [weak self] in
-            self?.configurePopoverWindow()
-        }
+        showPanel(relativeTo: button)
+        // MENUBAR-PANEL-EXPERIMENT END
     }
 
     @objc private func quitApp() {
         NSApp.terminate(nil)
     }
-
-    @objc private func toggleLaunchOnLogin() {
-        let enabled = isLaunchOnLoginEnabled()
-        setLaunchOnLogin(enabled: !enabled)
-    }
-
-    private func isLaunchOnLoginEnabled() -> Bool {
-        if #available(macOS 13.0, *) {
-            let status = SMAppService.mainApp.status
-            switch status {
-            case .enabled:
-                return true
-            default:
-                return false
-            }
-        } else {
-            // On older systems, avoid deprecated APIs and report disabled.
-            return false
-        }
-    }
-
-    private func setLaunchOnLogin(enabled: Bool) {
-        if #available(macOS 13.0, *) {
-            do {
-                if enabled {
-                    try SMAppService.mainApp.register()
-                } else {
-                    try SMAppService.mainApp.unregister()
-                }
-            } catch {
-                // You may want to surface this error to the user in UI or logging
-                NSLog("Failed to update launch at login: \(error.localizedDescription)")
-            }
-        } else {
-            // On older macOS versions, we do not attempt to manage login items to avoid deprecated APIs.
-            NSLog("Launch at login management is unavailable on this macOS version.")
-        }
-    }
-
   
     @objc private func exportAllNotes() {
         // Ensure UI work happens on main queue
-        self.popover?.performClose(nil)
+        // MENUBAR-PANEL-EXPERIMENT BEGIN
+        self.closePanel()
+        // MENUBAR-PANEL-EXPERIMENT END
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
             let panel = NSSavePanel()
@@ -275,3 +412,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         alert.runModal()
     }
 }
+
+// MENUBAR-PANEL-EXPERIMENT BEGIN
+private final class MenubarPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+// MENUBAR-PANEL-EXPERIMENT END
