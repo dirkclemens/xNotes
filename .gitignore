@@ -1,3 +1,8 @@
+.DerivedData/
+/.DerivedData/
+.gitignore
+/ignore/
 xNotes_screenshot.pxd
 codex_resume.sh
-
+!screenshot.jpg
+!screenshot.png
