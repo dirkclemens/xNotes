@@ -6,8 +6,8 @@
 import SwiftUI
 
 struct NotesView: View {
-    @ObservedObject var notesManager: NotesManager
-    @ObservedObject var textExpansionStore: TextExpansionStore
+    @EnvironmentObject var notesManager: NotesManager
+    @EnvironmentObject var textExpansionStore: TextExpansionStore
     @State private var isSearchVisible = false
     @State private var searchQuery = ""
     @State private var searchCursor = 0
@@ -25,7 +25,7 @@ struct NotesView: View {
             if page == .main {
                 
                 VStack(spacing: 0) {
-                    TabBarView(notesManager: notesManager)
+                    TabBarView()
                     
                     if isSearchVisible {
                         SearchBarView(
@@ -42,11 +42,7 @@ struct NotesView: View {
                     
                     if let selectedId = notesManager.selectedTabId,
                        let tab = notesManager.tabs.first(where: { $0.id == selectedId }) {
-                        SelectedTabContentView(
-                            tab: tab,
-                            notesManager: notesManager,
-                            textExpansionStore: textExpansionStore
-                        )
+                        SelectedTabContentView(tab: tab)
                     }
                     
                     Divider().frame(height: 1).background(.windowBackground)
@@ -56,7 +52,7 @@ struct NotesView: View {
 //                .frame(width: 600, height: 500)
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .background(.windowBackground)
-                .background(ShortcutTabMonitor(notesManager: notesManager))
+                .background(ShortcutTabMonitor())
                 .onChange(of: searchQuery) { _, _ in
                     searchCursor = 0
                     applyCurrentSearchResult()
@@ -89,25 +85,16 @@ struct NotesView: View {
                             .font(.system(size: 13, weight: .semibold))
                         Spacer()
                     }
-                    SettingsView(textExpansionStore: textExpansionStore)
+                    SettingsView()
                     Divider()
                     footerButtons
                 }
                 .padding(12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(.windowBackground)
 //                .frame(width: 260)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.easeInOut(duration: 0.6), value: page)
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                if let window = NSApp.windows.first(where: { $0.isVisible }) {
-                    window.level = keepWindowOpen ? .floating : .normal
-                }
-            }
-        }
     }
 
     private var footerButtons: some View {
@@ -135,11 +122,6 @@ struct NotesView: View {
             
             Button(action: {
                 keepWindowOpen.toggle()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    if let window = NSApp.windows.first(where: { $0.isVisible }) {
-                        window.level = keepWindowOpen ? .floating : .normal
-                    }
-                }
             }) {
                 Image(systemName: keepWindowOpen ? "pin.fill" : "pin")
                     .foregroundColor(keepWindowOpen ? .accentColor : .secondary)

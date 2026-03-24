@@ -16,7 +16,7 @@ struct xNotesApp: App {
     
     var body: some Scene {
         Settings {
-            SettingsView(textExpansionStore: TextExpansionStore.shared)
+            SettingsView()
         }
     }
 }

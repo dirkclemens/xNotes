@@ -8,22 +8,18 @@ import ServiceManagement
 import UniformTypeIdentifiers
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    static var sharedTextExpansionEngine: TextExpansionEngine?
     private var statusItem: NSStatusItem?
     // MENUBAR-PANEL-EXPERIMENT BEGIN
     private var panel: NSPanel?
-    private var hostingController: NSHostingController<PanelRootView>?
+    private var hostingController: NSHostingController<AnyView>?
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
-    private var localKeyMonitor: Any?
     private let panelModeController = PanelModeController()
     // MENUBAR-PANEL-EXPERIMENT END
     private var notesManager = NotesManager()
-    // TEXT-EXPANSION BEGIN
-    private let textExpansionStore = TextExpansionStore.shared
-    private var textExpansionEngine: TextExpansionEngine?
-    // TEXT-EXPANSION END
+    private var textExpansionStore = TextExpansionStore.shared
     private var hotkeyManager: HotkeyManager?
-    private var defaultsObserver: NSObjectProtocol?
     static let closePopoverNotification = Notification.Name("xNotesClosePopover")
     static let reopenPopoverNotification = Notification.Name("xNotesReopenPopover")
     
@@ -41,30 +37,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         // MENUBAR-PANEL-EXPERIMENT BEGIN
-        hostingController = NSHostingController(
-            rootView: PanelRootView(
-                notesManager: notesManager,
-                modeController: panelModeController,
-                textExpansionStore: textExpansionStore
+        hostingController = NSHostingController(rootView:
+            AnyView(
+                PanelRootView()
+                    .environmentObject(notesManager)
+                    .environmentObject(panelModeController)
+                    .environmentObject(textExpansionStore)
             )
         )
         panel = makePanel()
         // MENUBAR-PANEL-EXPERIMENT END
-        // TEXT-EXPANSION BEGIN
-        textExpansionEngine = TextExpansionEngine(store: textExpansionStore)
-        updateTextExpansionEngine()
-        defaultsObserver = NotificationCenter.default.addObserver(
-            forName: UserDefaults.didChangeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.updateTextExpansionEngine()
-        }
-        // TEXT-EXPANSION END
         hotkeyManager = HotkeyManager { [weak self] in
             self?.handleHotkeyTriggered()
         }
         hotkeyManager?.start()
+
+        AppDelegate.sharedTextExpansionEngine = TextExpansionEngine(store: textExpansionStore)
+        AppDelegate.sharedTextExpansionEngine?.start()
 
         NotificationCenter.default.addObserver(
             self,
@@ -99,7 +88,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MENUBAR-PANEL-EXPERIMENT BEGIN
     private func makePanel() -> NSPanel {
-        let panel = MenubarPanel(
+        let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
             styleMask: [.nonactivatingPanel, .borderless, .resizable],
             backing: .buffered,
@@ -115,14 +104,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panel.minSize = NSSize(width: 620, height: 480)
         panel.setFrameAutosaveName("xNotesPanelFrame")
         panel.contentViewController = hostingController
-        // Rounded corners for the panel.
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        if let contentView = panel.contentView {
-            contentView.wantsLayer = true
-            contentView.layer?.cornerRadius = 12
-            contentView.layer?.masksToBounds = true
-        }
         return panel
     }
 
@@ -142,11 +123,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             y = min(max(y, visible.minY), visible.maxY - panelSize.height)
         }
 
+        panel.level = keepOpen ? .floating : .normal
         panel.setFrame(NSRect(x: x, y: y, width: panelSize.width, height: panelSize.height), display: true)
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
-        installKeyMonitor()
         if !keepOpen {
             installDismissMonitors()
         }
@@ -180,7 +161,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
-        installKeyMonitor()
         if !keepOpen {
             installDismissMonitors()
         }
@@ -196,25 +176,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func closePanel() {
         panel?.orderOut(nil)
         removeDismissMonitors()
-        removeKeyMonitor()
-    }
-
-    private func installKeyMonitor() {
-        if localKeyMonitor != nil { return }
-        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            if event.keyCode == 53 { // ESC
-                self?.closePanel()
-                return nil
-            }
-            return event
-        }
-    }
-
-    private func removeKeyMonitor() {
-        if let localKeyMonitor {
-            NSEvent.removeMonitor(localKeyMonitor)
-            self.localKeyMonitor = nil
-        }
     }
 
     private func installDismissMonitors() {
@@ -247,17 +208,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     // MENUBAR-PANEL-EXPERIMENT END
-
-    // TEXT-EXPANSION BEGIN
-    private func updateTextExpansionEngine() {
-        let enabled = UserDefaults.standard.bool(forKey: "textExpansionEnabled")
-        if enabled {
-            textExpansionEngine?.start()
-        } else {
-            textExpansionEngine?.stop()
-        }
-    }
-    // TEXT-EXPANSION END
 
     private func showMenu() {
         let menu = NSMenu()
@@ -412,10 +362,3 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         alert.runModal()
     }
 }
-
-// MENUBAR-PANEL-EXPERIMENT BEGIN
-private final class MenubarPanel: NSPanel {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
-}
-// MENUBAR-PANEL-EXPERIMENT END

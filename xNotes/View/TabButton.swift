@@ -6,8 +6,8 @@
 import SwiftUI
 
 struct TabButton: View {
-    @ObservedObject var notesManager: NotesManager
     @ObservedObject var tab: NoteTab
+    @EnvironmentObject var notesManager: NotesManager
     let index: Int
     let isSelected: Bool
     let onSelect: () -> Void

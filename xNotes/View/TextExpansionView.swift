@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct TextExpansionView: View {
-    @ObservedObject var store: TextExpansionStore
+    @EnvironmentObject var store: TextExpansionStore
     @State private var newTrigger: String = ""
     @State private var newReplacement: String = ""
     @State private var pendingDeleteRule: TextExpansionRule?
@@ -17,7 +17,7 @@ struct TextExpansionView: View {
                 ForEach($store.rules) { $rule in
                     HStack(spacing: 8) {
                         Toggle("", isOn: $rule.isEnabled)
-                            .toggleStyle(.switch)
+                            .toggleStyle(.checkbox)
                             .labelsHidden()
 
                         TextField("Trigger", text: $rule.trigger)
@@ -51,7 +51,7 @@ struct TextExpansionView: View {
                     pendingDeleteRule = store.rules[index]
                 }
             }
-
+            
             Divider()
 
             HStack(spacing: 8) {

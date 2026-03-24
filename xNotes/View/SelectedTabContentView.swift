@@ -7,16 +7,15 @@ import SwiftUI
 
 struct SelectedTabContentView: View {
     @ObservedObject var tab: NoteTab
-    @ObservedObject var notesManager: NotesManager
-    @ObservedObject var textExpansionStore: TextExpansionStore
+    @EnvironmentObject var notesManager: NotesManager
+    @EnvironmentObject var textExpansionStore: TextExpansionStore
 
     var body: some View {
-        switch tab.kind {
-        case .clipboard:
-            ClipboardView(items: tab.clipboardItems, notesManager: notesManager)
-        case .expansions:
-            TextExpansionView(store: textExpansionStore)
-        case .note:
+        if tab.kind == .clipboard {
+            ClipboardView(items: tab.clipboardItems)
+        } else if tab.kind == .expansions {
+            TextExpansionView()
+        } else {
             TextEditorView(
                 content: Binding(
                     get: { tab.content },

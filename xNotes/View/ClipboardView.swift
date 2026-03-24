@@ -8,7 +8,7 @@ import AppKit
 
 struct ClipboardView: View {
     let items: [ClipboardItem]
-    @ObservedObject var notesManager: NotesManager
+    @EnvironmentObject var notesManager: NotesManager
     @State private var selection: ClipboardItem.ID?
 
     var body: some View {

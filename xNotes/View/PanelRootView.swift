@@ -4,19 +4,19 @@
 //
 
 import SwiftUI
-import Combine
+
 
 struct PanelRootView: View {
-    @ObservedObject var notesManager: NotesManager
-    @ObservedObject var modeController: PanelModeController
-    @ObservedObject var textExpansionStore: TextExpansionStore
+    @EnvironmentObject var notesManager: NotesManager
+    @EnvironmentObject var modeController: PanelModeController
+    @EnvironmentObject var textExpansionStore: TextExpansionStore
 
     var body: some View {
         switch modeController.mode {
         case .full:
-            NotesView(notesManager: notesManager, textExpansionStore: textExpansionStore)
+            NotesView()
         case .clipboard:
-            ClipboardOnlyView(notesManager: notesManager)
+            ClipboardOnlyView()
         }
     }
 }
