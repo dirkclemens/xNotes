@@ -7,14 +7,14 @@ import SwiftUI
 import AppKit
 
 struct ShortcutTabMonitor: NSViewRepresentable {
-    @ObservedObject var notesManager: NotesManager
+    @EnvironmentObject var notesManager: NotesManager
 
     func makeCoordinator() -> Coordinator {
         Coordinator(notesManager: notesManager)
     }
 
     func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
+        let view = NSView()
         context.coordinator.installMonitor()
         return view
     }
@@ -23,7 +23,7 @@ struct ShortcutTabMonitor: NSViewRepresentable {
         context.coordinator.notesManager = notesManager
     }
 
-    final class Coordinator {
+    class Coordinator: NSObject {
         var notesManager: NotesManager
         private var monitor: Any?
 

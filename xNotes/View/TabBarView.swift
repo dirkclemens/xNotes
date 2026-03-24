@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct TabBarView: View {
-    @ObservedObject var notesManager: NotesManager
+    @EnvironmentObject var notesManager: NotesManager
     
     var body: some View {
         HStack(spacing: 0) {
@@ -14,7 +14,6 @@ struct TabBarView: View {
                 LazyHStack(spacing: 2) {
                     ForEach(Array(notesManager.tabs.enumerated()), id: \.element.id) { index, tab in
                         TabButton(
-                            notesManager: notesManager,
                             tab: tab,
                             index: index,
                             isSelected: notesManager.selectedTabId == tab.id,

@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @StateObject private var loginItemManager = LoginItemManager()
-    @ObservedObject var textExpansionStore: TextExpansionStore
+    @EnvironmentObject var textExpansionStore: TextExpansionStore
     
     @AppStorage("showDockIcon") private var showDockIcon = false
     @AppStorage("keepWindowOpen") private var keepWindowOpen = false
@@ -41,7 +41,7 @@ struct SettingsView: View {
                     Text(error)
                         .font(.caption)
                         .foregroundStyle(.red)
-            }
+                }
             }
 
             Section("Editor") {
@@ -116,9 +116,14 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding(1)
-//        .frame(width: 520)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.windowBackground)
+        .onChange(of: textExpansionEnabled) { _, enabled in
+            if enabled {
+                AppDelegate.sharedTextExpansionEngine?.start()
+            } else {
+                AppDelegate.sharedTextExpansionEngine?.stop()
+            }
+        }
     }
 
     private func exportTextExpansions() {
