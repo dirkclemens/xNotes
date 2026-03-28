@@ -1,18 +1,13 @@
-//
-//  KeepWindowOpenState.swift
-//  xNotes
-//
-
 import Foundation
 import Combine
 
-class KeepWindowOpenState: ObservableObject {
+class WindowLevelStateSettings: ObservableObject {
     @Published var keepWindowOpen: Bool {
         didSet {
             UserDefaults.standard.set(keepWindowOpen, forKey: "keepWindowOpen")
         }
     }
-
+    
     init() {
         self.keepWindowOpen = UserDefaults.standard.bool(forKey: "keepWindowOpen")
     }

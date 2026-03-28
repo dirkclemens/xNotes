@@ -6,6 +6,7 @@ import SwiftUI
 import AppKit
 import ServiceManagement
 import UniformTypeIdentifiers
+import Combine
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     static var sharedTextExpansionEngine: TextExpansionEngine?
@@ -19,6 +20,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MENUBAR-PANEL-EXPERIMENT END
     private var notesManager = NotesManager()
     private var textExpansionStore = TextExpansionStore.shared
+    private var windowLevelStateSettings = WindowLevelStateSettings()
+    private var keepWindowOpenCancellable: AnyCancellable? // <-- Fix: retain Combine subscription
+    
     private var hotkeyManager: HotkeyManager?
     static let closePopoverNotification = Notification.Name("xNotesClosePopover")
     static let reopenPopoverNotification = Notification.Name("xNotesReopenPopover")
@@ -37,15 +41,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         // MENUBAR-PANEL-EXPERIMENT BEGIN
-        hostingController = NSHostingController(rootView:
-            AnyView(
-                PanelRootView()
-                    .environmentObject(notesManager)
-                    .environmentObject(panelModeController)
-                    .environmentObject(textExpansionStore)
-            )
+        // Initialisiere alle EnvironmentObjects als Properties (bereits vorhanden)
+        // Initialisiere hostingController zuerst
+        let rootView = AnyView(
+            PanelRootView()
+                .environmentObject(notesManager)
+                .environmentObject(panelModeController)
+                .environmentObject(textExpansionStore)
+                .environmentObject(windowLevelStateSettings)
         )
+        hostingController = NSHostingController(rootView: rootView)
+        // Panel erst nach hostingController initialisieren
         panel = makePanel()
+        if hostingController == nil {
+            print("[AppDelegate] hostingController ist nil!")
+        }
+        if panel == nil {
+            print("[AppDelegate] panel ist nil!")
+        }
         // MENUBAR-PANEL-EXPERIMENT END
         hotkeyManager = HotkeyManager { [weak self] in
             self?.handleHotkeyTriggered()
@@ -67,6 +80,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: AppDelegate.reopenPopoverNotification,
             object: nil
         )
+        
+        // Observe keepWindowOpen changes and update panel.level if visible
+        keepWindowOpenCancellable = windowLevelStateSettings.$keepWindowOpen.sink { [weak self] newValue in
+            guard let self = self, let panel = self.panel, panel.isVisible else { return }
+            panel.level = newValue ? .floating : .normal
+        }
     }
 
     @objc func togglePopover(_ sender: AnyObject?) {
@@ -88,30 +107,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MENUBAR-PANEL-EXPERIMENT BEGIN
     private func makePanel() -> NSPanel {
-        let panel = NSPanel(
+        let newPanel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
             styleMask: [.nonactivatingPanel, .borderless, .resizable],
             backing: .buffered,
             defer: false
         )
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        panel.isMovableByWindowBackground = true
-        panel.isReleasedWhenClosed = false
-        panel.hidesOnDeactivate = false
-        panel.level = .statusBar
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.minSize = NSSize(width: 620, height: 480)
-        panel.setFrameAutosaveName("xNotesPanelFrame")
-        panel.contentViewController = hostingController
-        return panel
+        newPanel.titleVisibility = .hidden
+        newPanel.titlebarAppearsTransparent = true
+        newPanel.isMovableByWindowBackground = true
+        newPanel.isReleasedWhenClosed = false
+        newPanel.hidesOnDeactivate = false
+        newPanel.level = .statusBar
+        newPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        newPanel.minSize = NSSize(width: 620, height: 480)
+        newPanel.setFrameAutosaveName("xNotesPanelFrame")
+        newPanel.contentViewController = hostingController
+        return newPanel
     }
 
     private func showPanel(relativeTo button: NSStatusBarButton) {
         guard let panel else { return }
         panelModeController.mode = .full
-        let keepOpen = UserDefaults.standard.bool(forKey: "keepWindowOpen")
-
+//        let keepOpen = UserDefaults.standard.bool(forKey: "keepWindowOpen")
+        let keepOpen = windowLevelStateSettings.keepWindowOpen // <-- use direct binding
+        
         let buttonRect = button.window?.convertToScreen(button.bounds) ?? .zero
         let panelSize = panel.frame.size
         var x = buttonRect.midX - (panelSize.width / 2)
@@ -135,8 +155,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showPanel(at anchor: NSPoint) {
         guard let panel else { return }
-        let keepOpen = UserDefaults.standard.bool(forKey: "keepWindowOpen")
-
+//        let keepOpen = UserDefaults.standard.bool(forKey: "keepWindowOpen")
+        let keepOpen = windowLevelStateSettings.keepWindowOpen // <-- use direct binding
+        
         let panelSize = panel.frame.size
         let screen = NSScreen.screens.first(where: { $0.frame.contains(anchor) }) ?? NSScreen.main
         let visible = screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
@@ -157,6 +178,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             x = visible.maxX - panelSize.width
         }
 
+        panel.level = keepOpen ? .floating : .normal
         panel.setFrame(NSRect(x: x, y: y, width: panelSize.width, height: panelSize.height), display: true)
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

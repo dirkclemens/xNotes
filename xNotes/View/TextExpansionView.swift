@@ -5,15 +5,31 @@
 
 import SwiftUI
 
+struct CustomList<Content>: View where Content: View {
+    @ViewBuilder let content: () -> Content
+    var body: some View {
+        List {
+            content()
+                .listSectionSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 0, trailing: 6))
+                .listRowSeparator(.hidden)
+        }
+        .listStyle(.plain)
+    }
+}
+
 struct TextExpansionView: View {
     @EnvironmentObject var store: TextExpansionStore
     @State private var newTrigger: String = ""
     @State private var newReplacement: String = ""
     @State private var pendingDeleteRule: TextExpansionRule?
+//    @State private var selection: UUID?
+    @State private var selection = Set<UUID>()
 
     var body: some View {
         VStack(spacing: 0) {
-            List {
+//            List(items, selection: $selection) { item in
+            List(selection: $selection) {
                 ForEach($store.rules) { $rule in
                     HStack(spacing: 8) {
                         Toggle("", isOn: $rule.isEnabled)
@@ -51,7 +67,7 @@ struct TextExpansionView: View {
                     pendingDeleteRule = store.rules[index]
                 }
             }
-            
+
             Divider()
 
             HStack(spacing: 8) {
