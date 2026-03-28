@@ -8,11 +8,12 @@ import SwiftUI
 struct NotesView: View {
     @EnvironmentObject var notesManager: NotesManager
     @EnvironmentObject var textExpansionStore: TextExpansionStore
+    @EnvironmentObject var windowSettings: WindowLevelStateSettings
     @State private var isSearchVisible = false
     @State private var searchQuery = ""
     @State private var searchCursor = 0
 
-    @AppStorage("keepWindowOpen") private var keepWindowOpen: Bool = false
+    private var keepWindowOpen: Binding<Bool> { $windowSettings.keepWindowOpen }
 
     private enum Page: Int, CaseIterable {
         case main
@@ -46,8 +47,7 @@ struct NotesView: View {
                     }
                     
                     Divider().frame(height: 1).background(.windowBackground)
-                    footerButtons
-                        .padding(12)
+                    footerButtons.padding(12)
                 }
 //                .frame(width: 600, height: 500)
                 .transition(.move(edge: .top).combined(with: .opacity))
@@ -101,7 +101,7 @@ struct NotesView: View {
         HStack {
 //            SettingsLink {
 //                Image(systemName: "gear")
-//                    .font(.system(size: 12))
+            
 //            }
             if (page == .settings) {
                 Button(action: {
@@ -121,13 +121,13 @@ struct NotesView: View {
             }
             
             Button(action: {
-                keepWindowOpen.toggle()
+                keepWindowOpen.wrappedValue.toggle()
             }) {
-                Image(systemName: keepWindowOpen ? "pin.fill" : "pin")
-                    .foregroundColor(keepWindowOpen ? .accentColor : .secondary)
+                Image(systemName: keepWindowOpen.wrappedValue ? "pin.fill" : "pin")
+                    .foregroundColor(keepWindowOpen.wrappedValue ? .accentColor : .secondary)
                     .font(.system(size: 11))
             }
-            .help(keepWindowOpen ? "Window stays on top" : "Normal window behavior")
+            .help(keepWindowOpen.wrappedValue ? "Window stays on top" : "Normal window behavior")
             
             Spacer()
             Button(action: { NSApp.terminate(nil) }) {
