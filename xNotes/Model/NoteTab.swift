@@ -16,6 +16,7 @@ class NoteTab: ObservableObject, Identifiable, Codable {
     @Published var isLocked: Bool
     @Published var kind: NoteTabKind
     @Published var clipboardItems: [ClipboardItem]
+    @Published var lastEditedAt: Date
 
     init(
         id: UUID = UUID(),
@@ -24,7 +25,8 @@ class NoteTab: ObservableObject, Identifiable, Codable {
         title: String? = nil,
         isLocked: Bool = false,
         kind: NoteTabKind = .note,
-        clipboardItems: [ClipboardItem] = []
+        clipboardItems: [ClipboardItem] = [],
+        lastEditedAt: Date = Date()
     ) {
         self.id = id
         self.content = content
@@ -33,10 +35,11 @@ class NoteTab: ObservableObject, Identifiable, Codable {
         self.isLocked = isLocked
         self.kind = kind
         self.clipboardItems = clipboardItems
+        self.lastEditedAt = lastEditedAt
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, content, color, title, isLocked, kind, clipboardItems
+        case id, content, color, title, isLocked, kind, clipboardItems, lastEditedAt
     }
 
     required convenience init(from decoder: Decoder) throws {
@@ -48,6 +51,7 @@ class NoteTab: ObservableObject, Identifiable, Codable {
         let isLocked = try c.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
         let kind = try c.decodeIfPresent(NoteTabKind.self, forKey: .kind) ?? .note
         let clipboardItems = try c.decodeIfPresent([ClipboardItem].self, forKey: .clipboardItems) ?? []
+        let lastEditedAt = try c.decodeIfPresent(Date.self, forKey: .lastEditedAt) ?? Date()
 
         self.init(
             id: id,
@@ -56,7 +60,8 @@ class NoteTab: ObservableObject, Identifiable, Codable {
             title: title,
             isLocked: isLocked,
             kind: kind,
-            clipboardItems: clipboardItems
+            clipboardItems: clipboardItems,
+            lastEditedAt: lastEditedAt
         )
     }
 
@@ -69,5 +74,6 @@ class NoteTab: ObservableObject, Identifiable, Codable {
         try c.encode(isLocked, forKey: .isLocked)
         try c.encode(kind, forKey: .kind)
         try c.encode(clipboardItems, forKey: .clipboardItems)
+        try c.encode(lastEditedAt, forKey: .lastEditedAt)
     }
 }

@@ -10,6 +10,7 @@ struct ClipboardView: View {
     let items: [ClipboardItem]
     @EnvironmentObject var notesManager: NotesManager
     @State private var selection: ClipboardItem.ID?
+    @State private var pendingSelection: ClipboardItem.ID?
 
     var body: some View {
         List(items, selection: $selection) { item in
@@ -17,7 +18,6 @@ struct ClipboardView: View {
                 Image(nsImage: sourceAppIcon(for: item))
                     .resizable()
                     .frame(width: 16, height: 16)
-
                 if let slot = item.pinnedSlot {
                     Text("\(slot)")
                         .font(.system(size: 10, weight: .bold))
@@ -25,19 +25,30 @@ struct ClipboardView: View {
                         .foregroundColor(.white)
                         .background(Circle().fill(Color.accentColor))
                 }
-
-                Text(item.text)
-                    .lineLimit(3)
+                Text(item.text).lineLimit(4)
             }
             .help(tooltipText(for: item))
-            .textSelection(.enabled)
-            .onTapGesture {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(item.text, forType: .string)
-            }
-            .contextMenu {
+            .contentShape(Rectangle())
+        }
+        .listStyle(.inset)
+        .focusable(true)
+        .contextMenu(forSelectionType: ClipboardItem.ID.self, menu: { selectedIds in
+            if let selectedId = selectedIds.first,
+               let item = items.first(where: { $0.id == selectedId }) {
                 Button("Paste into Last App") {
                     _ = notesManager.pasteTextIntoLastApp(item.text)
+                }
+                Menu("Append to Tab") {
+                    if noteTabs.isEmpty {
+                        Button("No Note Tabs") {}
+                            .disabled(true)
+                    } else {
+                        ForEach(noteTabs) { tab in
+                            Button(notesManager.displayTitle(for: tab)) {
+                                notesManager.appendClipboardItemToTab(itemId: item.id, tabId: tab.id)
+                            }
+                        }
+                    }
                 }
                 if item.pinnedSlot == nil {
                     Divider()
@@ -147,14 +158,59 @@ struct ClipboardView: View {
                 Button("Clear Clipboard History") {
                     notesManager.clearClipboardHistory()
                 }
+            } else {
+                Button("No Selection") {}
+                    .disabled(true)
+            }
+        }, primaryAction: { selectedIds in
+            guard let selectedId = selectedIds.first,
+                  let item = items.first(where: { $0.id == selectedId }) else { return }
+            _ = notesManager.pasteTextIntoLastApp(item.text)
+        })
+        .onDeleteCommand {
+            guard let id = selection else { return }
+            let preferredNext = preferredSelectionAfterDelete(currentId: id, items: items)
+            pendingSelection = preferredNext
+            notesManager.removeClipboardItem(id: id)
+        }
+        .onChange(of: items) { _, newItems in
+            if let pending = pendingSelection {
+                if newItems.contains(where: { $0.id == pending }) {
+                    selection = pending
+                } else {
+                    selection = newItems.first?.id
+                }
+                pendingSelection = nil
+                return
+            }
+            guard let selected = selection else {
+                selection = newItems.first?.id
+                return
+            }
+            if !newItems.contains(where: { $0.id == selected }) {
+                selection = newItems.first?.id
             }
         }
-        .listStyle(.inset)
     }
 
     private func tooltipText(for item: ClipboardItem) -> String {
         let source = item.sourceAppName ?? "Unknown"
         return "\(item.originalText)\n────────────────────\nSource: \(source)\nDate: \(tooltipDateFormatter.string(from: item.date))"
+    }
+
+    private var noteTabs: [NoteTab] {
+        notesManager.tabs.filter { $0.kind == .note }
+    }
+
+    private func preferredSelectionAfterDelete(currentId: ClipboardItem.ID, items: [ClipboardItem]) -> ClipboardItem.ID? {
+        guard let index = items.firstIndex(where: { $0.id == currentId }) else { return nil }
+        if index > 0 {
+            return items[index - 1].id
+        }
+        if index + 1 < items.count {
+            return items[index + 1].id
+        }
+        return nil
     }
 
     private var tooltipDateFormatter: DateFormatter {

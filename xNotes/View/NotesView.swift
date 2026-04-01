@@ -49,7 +49,7 @@ struct NotesView: View {
                     Divider().frame(height: 1).background(.windowBackground)
                     footerButtons.padding(12)
                 }
-//                .frame(width: 600, height: 500)
+
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .background(.windowBackground)
                 .background(ShortcutTabMonitor())
@@ -90,7 +90,7 @@ struct NotesView: View {
                     footerButtons
                 }
                 .padding(12)
-//                .frame(width: 260)
+                .background(.windowBackground)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -99,10 +99,6 @@ struct NotesView: View {
 
     private var footerButtons: some View {
         HStack {
-//            SettingsLink {
-//                Image(systemName: "gear")
-            
-//            }
             if (page == .settings) {
                 Button(action: {
                     goToPreviousPage()

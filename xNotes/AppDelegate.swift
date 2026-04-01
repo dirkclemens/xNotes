@@ -11,13 +11,13 @@ import Combine
 class AppDelegate: NSObject, NSApplicationDelegate {
     static var sharedTextExpansionEngine: TextExpansionEngine?
     private var statusItem: NSStatusItem?
-    // MENUBAR-PANEL-EXPERIMENT BEGIN
+    
     private var panel: NSPanel?
     private var hostingController: NSHostingController<AnyView>?
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
     private let panelModeController = PanelModeController()
-    // MENUBAR-PANEL-EXPERIMENT END
+    
     private var notesManager = NotesManager()
     private var textExpansionStore = TextExpansionStore.shared
     private var windowLevelStateSettings = WindowLevelStateSettings()
@@ -28,10 +28,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     static let reopenPopoverNotification = Notification.Name("xNotesReopenPopover")
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // no Dock Icon
-        // deprecated, use DockIconManager
-//        NSApp.setActivationPolicy(.accessory)
-
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusItem?.button {
@@ -40,7 +36,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
-        // MENUBAR-PANEL-EXPERIMENT BEGIN
+    
         // Initialisiere alle EnvironmentObjects als Properties (bereits vorhanden)
         // Initialisiere hostingController zuerst
         let rootView = AnyView(
@@ -59,7 +55,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if panel == nil {
             print("[AppDelegate] panel ist nil!")
         }
-        // MENUBAR-PANEL-EXPERIMENT END
+    
         hotkeyManager = HotkeyManager { [weak self] in
             self?.handleHotkeyTriggered()
         }
@@ -81,10 +77,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
         
-        // Observe keepWindowOpen changes and update panel.level if visible
+        // Observe keepWindowOpen changes and update panel immediately if visible
         keepWindowOpenCancellable = windowLevelStateSettings.$keepWindowOpen.sink { [weak self] newValue in
-            guard let self = self, let panel = self.panel, panel.isVisible else { return }
+            guard let self = self, let panel = self.panel else { return }
             panel.level = newValue ? .floating : .normal
+            if panel.isVisible {
+                if newValue {
+                    self.removeDismissMonitors()
+                } else {
+                    self.installDismissMonitors()
+                }
+            }
+            //NSLog("Updated panel level to \(panel.level) due to keepWindowOpen change: \(newValue)")
         }
     }
 
@@ -95,21 +99,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         if let button = statusItem?.button {
-            // MENUBAR-PANEL-EXPERIMENT BEGIN
+    
             if panel?.isVisible == true {
                 closePanel()
             } else {
                 showPanel(relativeTo: button)
             }
-            // MENUBAR-PANEL-EXPERIMENT END
         }
     }
 
-    // MENUBAR-PANEL-EXPERIMENT BEGIN
     private func makePanel() -> NSPanel {
-        let newPanel = NSPanel(
+        let newPanel = KeyHandlingPanel(
             contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
-            styleMask: [.nonactivatingPanel, .borderless, .resizable],
+//            styleMask: [.nonactivatingPanel, .borderless, .resizable],
+            styleMask: [.borderless, .resizable], // remove .nonactivatingPanel
             backing: .buffered,
             defer: false
         )
@@ -118,18 +121,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         newPanel.isMovableByWindowBackground = true
         newPanel.isReleasedWhenClosed = false
         newPanel.hidesOnDeactivate = false
-        newPanel.level = .statusBar
+        let keepOpen = windowLevelStateSettings.keepWindowOpen
+        newPanel.level = keepOpen ? .floating : .normal
         newPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         newPanel.minSize = NSSize(width: 620, height: 480)
         newPanel.setFrameAutosaveName("xNotesPanelFrame")
         newPanel.contentViewController = hostingController
+        
+        newPanel.isOpaque = false
+        newPanel.hasShadow = true
+        newPanel.backgroundColor = .clear
+        if let contentView = newPanel.contentView {
+            contentView.wantsLayer = true
+            contentView.layer?.cornerRadius = 16
+            contentView.layer?.masksToBounds = true
+        }
+        
         return newPanel
     }
 
     private func showPanel(relativeTo button: NSStatusBarButton) {
         guard let panel else { return }
         panelModeController.mode = .full
-//        let keepOpen = UserDefaults.standard.bool(forKey: "keepWindowOpen")
         let keepOpen = windowLevelStateSettings.keepWindowOpen // <-- use direct binding
         
         let buttonRect = button.window?.convertToScreen(button.bounds) ?? .zero
@@ -147,6 +160,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panel.setFrame(NSRect(x: x, y: y, width: panelSize.width, height: panelSize.height), display: true)
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        panel.makeFirstResponder(self.hostingController?.view)
 
         if !keepOpen {
             installDismissMonitors()
@@ -155,7 +169,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showPanel(at anchor: NSPoint) {
         guard let panel else { return }
-//        let keepOpen = UserDefaults.standard.bool(forKey: "keepWindowOpen")
         let keepOpen = windowLevelStateSettings.keepWindowOpen // <-- use direct binding
         
         let panelSize = panel.frame.size
@@ -182,6 +195,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panel.setFrame(NSRect(x: x, y: y, width: panelSize.width, height: panelSize.height), display: true)
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        panel.makeFirstResponder(self.hostingController?.view)
 
         if !keepOpen {
             installDismissMonitors()
@@ -229,7 +243,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             closePanel()
         }
     }
-    // MENUBAR-PANEL-EXPERIMENT END
 
     private func showMenu() {
         let menu = NSMenu()
@@ -264,17 +277,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func handleClosePopover() {
-        // MENUBAR-PANEL-EXPERIMENT BEGIN
         closePanel()
-        // MENUBAR-PANEL-EXPERIMENT END
     }
 
     @objc private func handleReopenPopover() {
-        // MENUBAR-PANEL-EXPERIMENT BEGIN
         NSApp.activate(ignoringOtherApps: true)
         guard let button = statusItem?.button else { return }
         showPanel(relativeTo: button)
-        // MENUBAR-PANEL-EXPERIMENT END
     }
 
     @objc private func quitApp() {
@@ -283,9 +292,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   
     @objc private func exportAllNotes() {
         // Ensure UI work happens on main queue
-        // MENUBAR-PANEL-EXPERIMENT BEGIN
         self.closePanel()
-        // MENUBAR-PANEL-EXPERIMENT END
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
             let panel = NSSavePanel()
