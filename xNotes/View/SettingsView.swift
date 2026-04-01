@@ -24,11 +24,11 @@ struct SettingsView: View {
     @AppStorage("hotkeyModifiers") private var hotkeyModifiers: Int = 0
     @AppStorage("hotkeyMode") private var hotkeyMode: String = PanelMode.full.rawValue
     @AppStorage("textExpansionEnabled") private var textExpansionEnabled: Bool = false
+    @AppStorage("tabAutoDeleteDays") private var tabAutoDeleteDays: Int = 7
 
     var body: some View {
         Form {
             Section("General") {
-                Toggle("Keep Window Open", isOn: $keepWindowOpen)
                 Toggle("Show Dock icon", isOn: $showDockIcon)
                     .onChange(of: showDockIcon) { _, value in
                         DockIconManager.apply(showDockIcon: value)
@@ -61,6 +61,20 @@ struct SettingsView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+            }
+
+            Section("Tabs") {
+                Stepper(value: $tabAutoDeleteDays, in: 1...365, step: 1) {
+                    HStack {
+                        Text("Auto-delete Unlocked Tabs")
+                        Spacer()
+                        Text("\(tabAutoDeleteDays) days")
+                            .foregroundColor(.secondary)
+                    }
+                }
+                Text("Unlocked tabs are deleted after this duration since the last edit.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {

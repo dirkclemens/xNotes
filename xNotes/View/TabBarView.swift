@@ -10,7 +10,7 @@ struct TabBarView: View {
     
     var body: some View {
         HStack(spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: true) {
+            ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 2) {
                     ForEach(Array(notesManager.tabs.enumerated()), id: \.element.id) { index, tab in
                         TabButton(
@@ -33,7 +33,7 @@ struct TabBarView: View {
             .background(Color(red: 0.937, green: 0.937, blue: 0.937))
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .clipped()
-            
+
             Button(action: { notesManager.addTab() }) {
                 Image(systemName: "plus")
                     .padding(6)

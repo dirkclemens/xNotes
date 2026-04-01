@@ -26,9 +26,20 @@ struct TabButton: View {
     
     let colorPalette: [Double] = [
         0.0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45,
-        0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95
+        0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.0
     ]
 
+    let rainbowColors = [ Color.yellow, Color.orange, Color.red,  Color.purple, Color.blue, Color.green ]
+    let grayscaleColors = [ Color.white, Color.gray, Color.black ]
+    
+    let adaptiveColumn = [
+        GridItem(.adaptive(minimum: 12))
+    ]
+    let rows = [
+        GridItem(.fixed(10)),
+        GridItem(.fixed(10))
+    ]
+    
     var body: some View {
         HStack(spacing: 4) {
             if isSelected, let onClose = onClose {
@@ -49,9 +60,22 @@ struct TabButton: View {
             }
 
             if tab.kind != .clipboard && tab.kind != .expansions {
+                let circleColor = tab.isLocked ? rainbowColors : grayscaleColors
+                let timeLeftDegree = notesManager.autoDeleteRotationDegrees(for: tab)
+                
                 Circle()
                     .fill(Color(hue: tab.color, saturation: 0.99, brightness: 0.99))
-                    .frame(width: 8, height: 8)
+                    .background(
+                        Circle()
+                            .stroke(.white, lineWidth: 2)
+                            .background(
+                                Circle()
+                                    .stroke(LinearGradient(colors: circleColor, startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 8)
+                                    .rotationEffect(.degrees(timeLeftDegree))
+                            )
+                    )
+                    .frame(width: 10, height: 10)
+                    .padding(.trailing, 4)
             }
             
             if isEditingTitle {
@@ -63,15 +87,15 @@ struct TabButton: View {
             } else {
                 if tab.kind == .clipboard {
                     Image(systemName: "list.clipboard")
-                        .font(.system(size: 9, weight: .regular))
-                        .foregroundColor(isSelected ? .primary : .secondary)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(isSelected ? .red : .secondary)
                         .help("Clipboard")
                         .accessibilityLabel("Clipboard")
                         .frame(width: 40, height: 16)
                 } else if tab.kind == .expansions {
                     Image(systemName: "text.badge.checkmark")
-                        .font(.system(size: 9, weight: .regular))
-                        .foregroundColor(isSelected ? .primary : .secondary)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(isSelected ? .blue : .secondary)
                         .help("Text Expansions")
                         .accessibilityLabel("Text Expansions")
                         .frame(width: 40, height: 16)

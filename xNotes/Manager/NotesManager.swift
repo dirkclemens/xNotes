@@ -21,6 +21,8 @@ class NotesManager: ObservableObject {
     private let pasteAsPlainTextKey = "pasteAsPlainText"
     private let pasteNormalizeLFKey = "pasteNormalizeLF"
     private let pasteTrimTrailingWhitespaceKey = "pasteTrimTrailingWhitespace"
+    private let tabAutoDeleteDaysKey = "tabAutoDeleteDays"
+    private let tabAutoDeleteDefaultDays = 7
     private var clipboardTimer: Timer?
     private var lastClipboardChangeCount: Int = 0
     private var lastClipboardString: String?
@@ -28,6 +30,7 @@ class NotesManager: ObservableObject {
     
     init() {
         loadTabs()
+        pruneExpiredTabs(persist: false)
         ensureSpecialTabs()
         if tabs.isEmpty {
             tabs = [NoteTab()]
@@ -69,6 +72,7 @@ class NotesManager: ObservableObject {
     func updateContent(for tabId: UUID, content: String) {
         if let index = tabs.firstIndex(where: { $0.id == tabId }) {
             tabs[index].content = content
+            tabs[index].lastEditedAt = Date()
             saveWithDelay()
         }
     }
@@ -76,6 +80,7 @@ class NotesManager: ObservableObject {
     func updateColor(for tabId: UUID, color: Double) {
         if let index = tabs.firstIndex(where: { $0.id == tabId }) {
             tabs[index].color = color
+            tabs[index].lastEditedAt = Date()
             saveWithDelay()
         }
     }
@@ -84,6 +89,7 @@ class NotesManager: ObservableObject {
         if let index = tabs.firstIndex(where: { $0.id == tabId }) {
             guard tabs[index].kind == .note else { return }
             tabs[index].title = title
+            tabs[index].lastEditedAt = Date()
             saveWithDelay()
         }
     }
@@ -110,6 +116,7 @@ class NotesManager: ObservableObject {
             try? await Task.sleep(nanoseconds: UInt64(saveDelay * 1_000_000_000))
             guard !Task.isCancelled else { return }
             await MainActor.run {
+                self.pruneExpiredTabs(persist: false)
                 self.saveTabs()
             }
         }
@@ -124,7 +131,8 @@ class NotesManager: ObservableObject {
                 title: tab.title,
                 isLocked: tab.isLocked,
                 kind: tab.kind,
-                clipboardItems: tab.clipboardItems
+                clipboardItems: tab.clipboardItems,
+                lastEditedAt: tab.lastEditedAt
             )
         }
         if let encoded = try? JSONEncoder().encode(codableTabs) {
@@ -142,7 +150,8 @@ class NotesManager: ObservableObject {
                     title: $0.title,
                     isLocked: $0.isLocked,
                     kind: $0.kind,
-                    clipboardItems: $0.clipboardItems
+                    clipboardItems: $0.clipboardItems,
+                    lastEditedAt: $0.lastEditedAt
                 )
             }
         }
@@ -178,7 +187,8 @@ class NotesManager: ObservableObject {
                 title: title,
                 isLocked: true,
                 kind: kind,
-                clipboardItems: []
+                clipboardItems: [],
+                lastEditedAt: Date()
             )
             let target = min(insertAt, tabs.count)
             tabs.insert(tab, at: target)
@@ -201,7 +211,8 @@ class NotesManager: ObservableObject {
                 title: title,
                 isLocked: true,
                 kind: kind,
-                clipboardItems: []
+                clipboardItems: [],
+                lastEditedAt: Date()
             )
             tabs.append(tab)
         }
@@ -216,7 +227,8 @@ class NotesManager: ObservableObject {
                 title: tab.title,
                 isLocked: tab.isLocked,
                 kind: tab.kind,
-                clipboardItems: tab.clipboardItems
+                clipboardItems: tab.clipboardItems,
+                lastEditedAt: tab.lastEditedAt
             )
         }
         let payload = AppBackup(
@@ -238,9 +250,11 @@ class NotesManager: ObservableObject {
                 title: $0.title,
                 isLocked: $0.isLocked,
                 kind: $0.kind,
-                clipboardItems: $0.clipboardItems
+                clipboardItems: $0.clipboardItems,
+                lastEditedAt: $0.lastEditedAt
             )
         }
+        pruneExpiredTabs(persist: false)
         ensureSpecialTabs()
         if tabs.isEmpty {
             tabs = [NoteTab()]
@@ -252,6 +266,66 @@ class NotesManager: ObservableObject {
             selectedTabId = tabs.first?.id
         }
         saveTabs()
+    }
+
+    private func pruneExpiredTabs(persist: Bool = true, now: Date = Date()) {
+        let days = autoDeleteDays()
+        guard days > 0 else { return }
+        let cutoff = now.addingTimeInterval(-TimeInterval(days * 24 * 60 * 60))
+        let expiredIds = Set<UUID>(
+            tabs.compactMap { tab in
+                guard tab.kind == .note, !tab.isLocked else { return nil }
+                return tab.lastEditedAt < cutoff ? tab.id : nil
+            }
+        )
+        guard !expiredIds.isEmpty else { return }
+        tabs.removeAll { expiredIds.contains($0.id) }
+        if let selected = selectedTabId, expiredIds.contains(selected) {
+            selectedTabId = tabs.first?.id
+        }
+        if persist {
+            saveWithDelay()
+        }
+    }
+
+    func autoDeleteDays() -> Int {
+        let value = UserDefaults.standard.integer(forKey: tabAutoDeleteDaysKey)
+        if value <= 0 { return tabAutoDeleteDefaultDays }
+        return value
+    }
+
+    func autoDeleteRotationDegrees(for tab: NoteTab, now: Date = Date()) -> Double {
+        guard tab.kind == .note, !tab.isLocked else { return 0 }
+        let days = autoDeleteDays()
+        guard days > 0 else { return 0 }
+        let total = TimeInterval(days * 24 * 60 * 60)
+        let elapsed = max(0, now.timeIntervalSince(tab.lastEditedAt))
+        let remaining = max(0, total - elapsed)
+        let fraction = remaining / total
+        return fraction * 360
+    }
+
+    func displayTitle(for tab: NoteTab) -> String {
+        if tab.kind == .clipboard {
+            return "Clipboard"
+        }
+        if tab.kind == .expansions {
+            return "Text Expansions"
+        }
+        if let title = tab.title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return title
+        }
+        let lines = tab.content.components(separatedBy: .newlines)
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        if let index = tabs.firstIndex(where: { $0.id == tab.id }) {
+            return "Tab \(index + 1)"
+        }
+        return "Tab"
     }
 
     private func startClipboardMonitor() {
@@ -314,6 +388,17 @@ class NotesManager: ObservableObject {
     func clipboardText(for itemId: ClipboardItem.ID) -> String? {
         guard let index = tabs.firstIndex(where: { $0.kind == .clipboard }) else { return nil }
         return tabs[index].clipboardItems.first(where: { $0.id == itemId })?.text
+    }
+
+    func appendClipboardItemToTab(itemId: ClipboardItem.ID, tabId: UUID) {
+        guard let text = clipboardText(for: itemId) else { return }
+        guard let index = tabs.firstIndex(where: { $0.id == tabId }) else { return }
+        guard tabs[index].kind == .note else { return }
+        let existing = tabs[index].content
+        let separator = existing.isEmpty ? "" : "\n"
+        tabs[index].content = existing + separator + text
+        tabs[index].lastEditedAt = Date()
+        saveWithDelay()
     }
 
     func replaceClipboardItem(id: ClipboardItem.ID, with text: String, updatePasteboard: Bool = true) {
