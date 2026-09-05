@@ -4,5 +4,8 @@
 /ignore/
 xNotes_screenshot.pxd
 codex_resume.sh
+*.dmg
+*.sh
+landing.html
 !screenshot.jpg
 !screenshot.png
