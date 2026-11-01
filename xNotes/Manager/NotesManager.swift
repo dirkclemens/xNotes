@@ -566,6 +566,14 @@ class NotesManager: ObservableObject {
         }
     }
 
+    func removeUnderscoreAndHyphenClipboardItem(id: ClipboardItem.ID) {
+        transformClipboardItem(id: id) { text in
+            text
+                .replacingOccurrences(of: "_", with: " ")
+                .replacingOccurrences(of: "-", with: " ")
+        }
+    }
+
     func reverseLinesClipboardItem(id: ClipboardItem.ID) {
         transformClipboardItem(id: id) { text in
             text.components(separatedBy: .newlines).reversed().joined(separator: "\n")

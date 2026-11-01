@@ -11,6 +11,7 @@ struct ClipboardView: View {
     @EnvironmentObject var notesManager: NotesManager
     @State private var selection: ClipboardItem.ID?
     @State private var pendingSelection: ClipboardItem.ID?
+    @AppStorage("clipboardLineLimit") private var clipboardLineLimit: Int = 4
 
     var body: some View {
         List(items, selection: $selection) { item in
@@ -25,7 +26,7 @@ struct ClipboardView: View {
                         .foregroundColor(.white)
                         .background(Circle().fill(Color.accentColor))
                 }
-                Text(item.text).lineLimit(4)
+                Text(item.text).lineLimit(clipboardLineLimit)
             }
             .help(tooltipText(for: item))
             .contentShape(Rectangle())
@@ -35,6 +36,13 @@ struct ClipboardView: View {
         .contextMenu(forSelectionType: ClipboardItem.ID.self, menu: { selectedIds in
             if let selectedId = selectedIds.first,
                let item = items.first(where: { $0.id == selectedId }) {
+                Button("Insert to Clipboard") {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    //pasteboard.setString(item.text, forType: .string)
+                    let text: NSString = item.originalText as NSString
+                    pasteboard.writeObjects([text])
+                }
                 Button("Paste into Last App") {
                     _ = notesManager.pasteTextIntoLastApp(item.text)
                 }
@@ -73,6 +81,9 @@ struct ClipboardView: View {
                 }
                 Button("To camelCase") {
                     notesManager.toCamelCaseClipboardItem(id: item.id)
+                }
+                Button("Replace `_` and `-`") {
+                    notesManager.removeUnderscoreAndHyphenClipboardItem(id: item.id)
                 }
                 Button("Trim") {
                     notesManager.replaceClipboardItem(id: item.id, with: item.text.trimmingCharacters(in: .whitespacesAndNewlines))

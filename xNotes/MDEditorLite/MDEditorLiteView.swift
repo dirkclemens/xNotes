@@ -82,6 +82,12 @@ public struct MDEditorLiteView: NSViewRepresentable {
         textView.textContainer?.widthTracksTextView = true
 
         scrollView.documentView = textView
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.textDidChange(_:)),
+            name: NSText.didChangeNotification,
+            object: textView
+        )
         return scrollView
     }
 
@@ -102,9 +108,13 @@ public struct MDEditorLiteView: NSViewRepresentable {
             self.parent = parent
         }
 
-        public func textDidChange(_ notification: Notification) {
+        @objc public func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
+        }
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
         }
     }
 }
