@@ -11,6 +11,7 @@ struct ClipboardView: View {
     @EnvironmentObject var notesManager: NotesManager
     @State private var selection: ClipboardItem.ID?
     @State private var pendingSelection: ClipboardItem.ID?
+    @State private var editItem: ClipboardItem?
     @AppStorage("clipboardLineLimit") private var clipboardLineLimit: Int = 4
 
     var body: some View {
@@ -33,6 +34,9 @@ struct ClipboardView: View {
         }
         .listStyle(.inset)
         .focusable(true)
+        .sheet(item: $editItem) { item in
+            EditClipboardItemView(item: item)
+        }
         .contextMenu(forSelectionType: ClipboardItem.ID.self, menu: { selectedIds in
             if let selectedId = selectedIds.first,
                let item = items.first(where: { $0.id == selectedId }) {
@@ -45,6 +49,13 @@ struct ClipboardView: View {
                 }
                 Button("Paste into Last App") {
                     _ = notesManager.pasteTextIntoLastApp(item.text)
+                }
+                Divider()
+                Button("Edit Item") {
+                    editItem = item
+                }
+                Button("Remove Item") {
+                    notesManager.removeClipboardItem(id: item.id)
                 }
                 Menu("Append to Tab") {
                     if noteTabs.isEmpty {
@@ -91,6 +102,9 @@ struct ClipboardView: View {
                 Button("Collapse Whitespace") {
                     let collapsed = item.text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
                     notesManager.replaceClipboardItem(id: item.id, with: collapsed)
+                }
+                Button("Convert HTML to Markdown") {
+                    notesManager.convertHtmlToMarkdownClipboardItem(id: item.id)
                 }
                 Divider()
                 Button("URL Encode") {
@@ -163,9 +177,6 @@ struct ClipboardView: View {
                     notesManager.extractURLsClipboardItem(id: item.id)
                 }
                 Divider()
-                Button("Remove Item") {
-                    notesManager.removeClipboardItem(id: item.id)
-                }
                 Button("Clear Clipboard History") {
                     notesManager.clearClipboardHistory()
                 }
