@@ -265,6 +265,47 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         importBackupItem.target = self
         menu.addItem(importBackupItem)
 
+        // Clipboard: latest 10 entries
+        if let clipboardTab = notesManager.tabs.first(where: { $0.kind == .clipboard }) {
+            let latestItems = Array(clipboardTab.clipboardItems.prefix(10))
+            if !latestItems.isEmpty {
+                menu.addItem(.separator())
+                let clipboardHeader = NSMenuItem(title: "Clipboard", action: nil, keyEquivalent: "")
+                clipboardHeader.isEnabled = false
+                menu.addItem(clipboardHeader)
+
+                for item in latestItems {
+                    let firstLine = item.text.components(separatedBy: .newlines).first ?? ""
+                    let displayTitle = firstLine.isEmpty ? "(empty)" : String(firstLine.prefix(60))
+                    let menuItem = NSMenuItem(title: displayTitle, action: #selector(pasteClipboardMenuItem(_:)), keyEquivalent: "")
+                    menuItem.target = self
+                    menuItem.representedObject = item.text
+                    menuItem.toolTip = item.text
+
+                    var icon: NSImage?
+                    if let bundleId = item.sourceAppBundleId,
+                       let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
+                        icon = NSWorkspace.shared.icon(forFile: appURL.path)
+                    }
+                    if icon == nil {
+                        icon = NSImage(named: NSImage.infoName)
+                    }
+
+                    if let icon = icon {
+                        icon.size = NSSize(width: 16, height: 16)
+                        let attachment = NSTextAttachment()
+                        attachment.image = icon
+                        attachment.bounds = NSRect(x: 0, y: -1.5, width: 16, height: 16)
+                        let attrString = NSMutableAttributedString(attachment: attachment)
+                        attrString.append(NSAttributedString(string: "  \(displayTitle)"))
+                        menuItem.attributedTitle = attrString
+                    }
+
+                    menu.addItem(menuItem)
+                }
+            }
+        }
+
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
@@ -288,6 +329,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quitApp() {
         NSApp.terminate(nil)
+    }
+
+    @objc private func pasteClipboardMenuItem(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String, !text.isEmpty else { return }
+        _ = notesManager.pasteTextIntoLastApp(text)
     }
   
     @objc private func exportAllNotes() {

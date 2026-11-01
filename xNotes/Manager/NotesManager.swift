@@ -437,6 +437,16 @@ class NotesManager: ObservableObject {
         }
     }
 
+    func editClipboardItem(id: ClipboardItem.ID, with text: String) {
+        replaceClipboardItem(id: id, with: text, updatePasteboard: false)
+    }
+
+    func convertHtmlToMarkdownClipboardItem(id: ClipboardItem.ID) {
+        transformClipboardItem(id: id) { text in
+            htmlToMarkdown(text)
+        }
+    }
+
     func urlEncodeClipboardItem(id: ClipboardItem.ID) {
         transformClipboardItem(id: id) { text in
             text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
@@ -658,6 +668,157 @@ class NotesManager: ObservableObject {
         guard let current = clipboardText(for: id) else { return }
         guard let updated = transform(current), updated != current else { return }
         replaceClipboardItem(id: id, with: updated)
+    }
+
+    private func htmlToMarkdown(_ html: String) -> String {
+        var markdown = html
+
+        // Tables must be converted before inline tag stripping, so their cell
+        // content can still benefit from bold/italic/code/link conversion below.
+        markdown = convertHTMLTables(markdown)
+
+        // Helper that allows `.` to match across newlines (needed for block elements).
+        func regexReplace(_ pattern: String, template: String, in text: String) -> String {
+            guard let regex = try? NSRegularExpression(
+                pattern: pattern,
+                options: [.caseInsensitive, .dotMatchesLineSeparators])
+            else { return text }
+            let range = NSRange(text.startIndex..<text.endIndex, in: text)
+            return regex.stringByReplacingMatches(in: text, range: range, withTemplate: template)
+        }
+
+        // Code blocks first (so their inner tags are not converted).
+        markdown = regexReplace(#"<pre[^>]*>(.*?)</pre>"#, template: "```\n$1\n```", in: markdown)
+
+        // Headings.
+        markdown = regexReplace(#"<h1[^>]*>(.*?)</h1>"#, template: "# $1\n\n", in: markdown)
+        markdown = regexReplace(#"<h2[^>]*>(.*?)</h2>"#, template: "## $1\n\n", in: markdown)
+        markdown = regexReplace(#"<h3[^>]*>(.*?)</h3>"#, template: "### $1\n\n", in: markdown)
+        markdown = regexReplace(#"<h4[^>]*>(.*?)</h4>"#, template: "#### $1\n\n", in: markdown)
+        markdown = regexReplace(#"<h5[^>]*>(.*?)</h5>"#, template: "##### $1\n\n", in: markdown)
+        markdown = regexReplace(#"<h6[^>]*>(.*?)</h6>"#, template: "###### $1\n\n", in: markdown)
+
+        // Links: [text](url)
+        markdown = regexReplace(#"<a[^>]*href=["']([^"']*)["'][^>]*>(.*?)</a>"#, template: "[$2]($1)", in: markdown)
+
+        // Images: ![alt](src)
+        markdown = regexReplace(#"<img[^>]*src=["']([^"']*)["'][^>]*>"#, template: "![$1]", in: markdown)
+
+        // Blockquotes.
+        markdown = regexReplace(#"<blockquote[^>]*>(.*?)</blockquote>"#, template: "> $1\n\n", in: markdown)
+
+        // Lists.
+        markdown = regexReplace(#"<li[^>]*>(.*?)</li>"#, template: "- $1\n", in: markdown)
+        markdown = regexReplace(#"</?(ul|ol)[^>]*>"#, template: "", in: markdown)
+
+        // Horizontal rules.
+        markdown = regexReplace(#"<hr\s*/?>"#, template: "\n---\n", in: markdown)
+
+        // Inline code.
+        markdown = regexReplace(#"<code[^>]*>(.*?)</code>"#, template: "`$1`", in: markdown)
+
+        // Bold / strong.
+        markdown = regexReplace(#"</?(b|strong)[^>]*>"#, template: "**", in: markdown)
+
+        // Italic / emphasis.
+        markdown = regexReplace(#"</?(i|em)[^>]*>"#, template: "*", in: markdown)
+
+        // Paragraphs and line breaks.
+        markdown = regexReplace(#"</p>"#, template: "\n\n", in: markdown)
+        markdown = regexReplace(#"<p[^>]*>"#, template: "", in: markdown)
+        markdown = regexReplace(#"<br\s*/?>"#, template: "\n", in: markdown)
+
+        // Strip any remaining tags.
+        markdown = regexReplace(#"<[^>]+>"#, template: "", in: markdown)
+
+        // Decode common HTML entities.
+        markdown = markdown.replacingOccurrences(of: "&nbsp;", with: " ")
+        markdown = markdown.replacingOccurrences(of: "&amp;", with: "&")
+        markdown = markdown.replacingOccurrences(of: "&lt;", with: "<")
+        markdown = markdown.replacingOccurrences(of: "&gt;", with: ">")
+        markdown = markdown.replacingOccurrences(of: "&quot;", with: "\"")
+        markdown = markdown.replacingOccurrences(of: "&#39;", with: "'")
+        markdown = markdown.replacingOccurrences(of: "&#x27;", with: "'")
+        markdown = markdown.replacingOccurrences(of: "&#x22;", with: "\"")
+
+        // Collapse excessive blank lines.
+        markdown = regexReplace(#"\n{3,}"#, template: "\n\n", in: markdown)
+
+        return markdown.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func convertHTMLTables(_ html: String) -> String {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"<table[^>]*>(.*?)</table>"#,
+            options: [.caseInsensitive, .dotMatchesLineSeparators])
+        else { return html }
+
+        var result = ""
+        var lastEnd = 0
+        let fullRange = NSRange(html.startIndex..<html.endIndex, in: html)
+
+        for match in regex.matches(in: html, range: fullRange) {
+            let tableRange = match.range
+            let innerRange = match.range(at: 1)
+
+            // Append text before this table.
+            result += (html as NSString).substring(
+                with: NSRange(location: lastEnd, length: tableRange.location - lastEnd))
+
+            let inner = (html as NSString).substring(with: innerRange)
+            result += renderTable(inner)
+
+            lastEnd = tableRange.location + tableRange.length
+        }
+
+        result += (html as NSString).substring(from: lastEnd)
+        return result
+    }
+
+    private func renderTable(_ inner: String) -> String {
+        guard let rowRegex = try? NSRegularExpression(
+            pattern: #"<tr[^>]*>(.*?)</tr>"#,
+            options: [.caseInsensitive, .dotMatchesLineSeparators])
+        else { return "" }
+
+        let rowRange = NSRange(inner.startIndex..<inner.endIndex, in: inner)
+        var rows: [[String]] = []
+
+        for match in rowRegex.matches(in: inner, range: rowRange) {
+            let cellRange = match.range(at: 1)
+            let cellContent = (inner as NSString).substring(with: cellRange)
+
+            guard let cellRegex = try? NSRegularExpression(
+                pattern: #"<t[hd][^>]*>(.*?)</t[hd]>"#,
+                options: [.caseInsensitive, .dotMatchesLineSeparators])
+            else { continue }
+
+            let cellFullRange = NSRange(cellContent.startIndex..<cellContent.endIndex, in: cellContent)
+            var cells: [String] = []
+
+            for cellMatch in cellRegex.matches(in: cellContent, range: cellFullRange) {
+                let cRange = cellMatch.range(at: 1)
+                var cellText = (cellContent as NSString).substring(with: cRange)
+                cellText = cellText.trimmingCharacters(in: .whitespacesAndNewlines)
+                cells.append(cellText)
+            }
+
+            if !cells.isEmpty {
+                rows.append(cells)
+            }
+        }
+
+        guard !rows.isEmpty else { return "" }
+
+        var md = ""
+        for (rowIndex, row) in rows.enumerated() {
+            md += "| " + row.joined(separator: " | ") + " |\n"
+            if rowIndex == 0 {
+                md += "| " + row.map { _ in "---" }.joined(separator: " | ") + " |\n"
+            }
+        }
+        md += "\n"
+        return md
     }
 
     private func words(from text: String) -> [String] {
