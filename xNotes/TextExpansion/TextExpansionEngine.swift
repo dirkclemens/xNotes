@@ -7,6 +7,7 @@ import Foundation
 import AppKit
 import Combine
 import Carbon.HIToolbox
+import IOKit.hid
 
 final class TextExpansionEngine {
     private let store: TextExpansionStore
@@ -35,6 +36,7 @@ final class TextExpansionEngine {
     func start() {
         guard eventTap == nil else { return }
         _ = ensureAccessibilityPermission()
+        _ = ensureInputMonitoringPermission()
 
         let mask = (1 << CGEventType.keyDown.rawValue)
         let callback: CGEventTapCallBack = { proxy, type, event, refcon in
@@ -181,5 +183,22 @@ final class TextExpansionEngine {
         _ = AXIsProcessTrustedWithOptions(options)
         NSLog("Accessibility permission is required for text expansions.")
         return false
+    }
+
+    private func ensureInputMonitoringPermission() -> Bool {
+        let status = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
+        switch status {
+        case kIOHIDAccessTypeGranted:
+            return true
+        case kIOHIDAccessTypeDenied:
+            NSLog("Input Monitoring permission was denied. Enable xNotes in System Settings > Privacy & Security > Input Monitoring.")
+            return false
+        default:
+            let granted = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+            if !granted {
+                NSLog("Input Monitoring permission is required for text expansions.")
+            }
+            return granted
+        }
     }
 }

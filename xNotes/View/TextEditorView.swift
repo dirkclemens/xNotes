@@ -16,6 +16,11 @@ struct TextEditorView: View {
         MDEditorLiteView(text: $content)
             .scrollContentBackground(.hidden)
             .focused($isFocused)
+            .onAppear {
+                DispatchQueue.main.async {
+                    isFocused = true
+                }
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     

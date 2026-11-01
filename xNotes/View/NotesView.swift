@@ -44,6 +44,7 @@ struct NotesView: View {
                     if let selectedId = notesManager.selectedTabId,
                        let tab = notesManager.tabs.first(where: { $0.id == selectedId }) {
                         SelectedTabContentView(tab: tab)
+                            .id(tab.id)
                     }
                     
                     Divider().frame(height: 1).background(.windowBackground)

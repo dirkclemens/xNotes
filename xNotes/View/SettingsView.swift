@@ -16,6 +16,7 @@ struct SettingsView: View {
     @AppStorage("editorFontName") private var editorFontName: String = "SF Mono"
     @AppStorage("editorFontSize") private var editorFontSize: Double = 14
     @AppStorage("clipboardMaxItems") private var clipboardMaxItems: Int = 200
+    @AppStorage("clipboardLineLimit") private var clipboardLineLimit: Int = 4
     @AppStorage("pasteAsPlainText") private var pasteAsPlainText: Bool = false
     @AppStorage("pasteNormalizeLF") private var pasteNormalizeLF: Bool = true
     @AppStorage("pasteTrimTrailingWhitespace") private var pasteTrimTrailingWhitespace: Bool = true
@@ -83,6 +84,15 @@ struct SettingsView: View {
                         Text("Max Entries")
                         Spacer()
                         Text("\(clipboardMaxItems)")
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Stepper(value: $clipboardLineLimit, in: 1...12, step: 1) {
+                    HStack {
+                        Text("Max Lines per Item")
+                        Spacer()
+                        Text("\(clipboardLineLimit)")
                             .foregroundColor(.secondary)
                     }
                 }
