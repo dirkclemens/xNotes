@@ -30,7 +30,7 @@ struct TabBarView: View {
             .scrollClipDisabled(false)
             .frame(maxWidth: .infinity, alignment: .leading)
             .layoutPriority(1)
-            .background(Color(red: 0.937, green: 0.937, blue: 0.937))
+            .background(Color.tabStripBackground)
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .clipped()
 

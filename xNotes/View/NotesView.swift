@@ -12,6 +12,8 @@ struct NotesView: View {
     @State private var isSearchVisible = false
     @State private var searchQuery = ""
     @State private var searchCursor = 0
+    /// Cached so the (potentially large) search isn't re-run on every view update.
+    @State private var searchResults: [SearchResult] = []
     @State private var searchFocusRequest = 0
     @State private var activeSearchResult: SearchResult?
 
@@ -61,10 +63,14 @@ struct NotesView: View {
 
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .background(.windowBackground)
-                .background(ShortcutTabMonitor())
+                .background(ShortcutTabMonitor(isSearchVisible: isSearchVisible))
                 .onChange(of: searchQuery) { _, _ in
                     searchCursor = 0
+                    refreshSearchResults()
                     applyCurrentSearchResult()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: ShortcutNotifications.closeSearch)) { _ in
+                    closeSearch()
                 }
                 .onReceive(NotificationCenter.default.publisher(for: ShortcutNotifications.focusSearch)) { _ in
                     openSearch()
@@ -159,8 +165,8 @@ struct NotesView: View {
         }
     }
 
-    private var searchResults: [SearchResult] {
-        notesManager.searchResults(for: searchQuery)
+    private func refreshSearchResults() {
+        searchResults = notesManager.searchResults(for: searchQuery)
     }
 
     private var currentResultIndex: Int? {
@@ -171,6 +177,8 @@ struct NotesView: View {
     }
 
     private func stepSearch(previous: Bool) {
+        // Re-run the search so edits made since the last step are taken into account.
+        refreshSearchResults()
         guard !searchResults.isEmpty else { return }
         searchCursor += previous ? -1 : 1
         applyCurrentSearchResult()
@@ -198,6 +206,7 @@ struct NotesView: View {
         isSearchVisible = false
         searchQuery = ""
         searchCursor = 0
+        searchResults = []
         activeSearchResult = nil
     }
 }

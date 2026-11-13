@@ -31,7 +31,6 @@ struct SearchBarView: View {
                     // Keep typing in the search field after pressing Return.
                     isSearchFocused = true
                 }
-                .onExitCommand(perform: onClose)
 
             Text(resultLabel)
                 .font(.caption)
