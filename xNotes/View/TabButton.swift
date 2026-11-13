@@ -148,7 +148,7 @@ struct TabButton: View {
                                     .fill(Color(hue: hue, saturation: 0.99, brightness: 0.99))
                                     .frame(width: 18, height: 18)
                                     .overlay(
-                                        Circle().stroke(hue == tab.color ? Color.black : Color.clear, lineWidth: hue == tab.color ? 3 : 0)
+                                        Circle().stroke(hue == tab.color ? Color.primary : Color.clear, lineWidth: hue == tab.color ? 3 : 0)
                                     )
                             }
                             .buttonStyle(.plain)
@@ -166,7 +166,7 @@ struct TabButton: View {
                 .fill(
                     isSelected
                     ? AnyShapeStyle(Color(NSColor.windowBackgroundColor))
-                    : AnyShapeStyle(Color(red: 0.937, green: 0.937, blue: 0.937))
+                    : AnyShapeStyle(Color.tabStripBackground)
                 )
                 .shadow(color: isSelected ? .gray : .clear, radius: isSelected ? 2 : 0, x: 0, y: isSelected ? 2 : 0)
         )
