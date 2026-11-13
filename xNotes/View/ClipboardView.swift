@@ -62,146 +62,7 @@ struct ClipboardView: View {
         .contextMenu(forSelectionType: ClipboardItem.ID.self, menu: { selectedIds in
             if let selectedId = selectedIds.first,
                let item = items.first(where: { $0.id == selectedId }) {
-                Button("Insert to Clipboard") {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    //pasteboard.setString(item.text, forType: .string)
-                    let text: NSString = item.originalText as NSString
-                    pasteboard.writeObjects([text])
-                }
-                Button("Paste into Last App") {
-                    _ = notesManager.pasteTextIntoLastApp(item.text)
-                }
-                Divider()
-                Button("Edit Item") {
-                    editItem = item
-                }
-                Button("Remove Item") {
-                    notesManager.removeClipboardItem(id: item.id)
-                }
-                Menu("Append to Tab") {
-                    if noteTabs.isEmpty {
-                        Button("No Note Tabs") {}
-                            .disabled(true)
-                    } else {
-                        ForEach(noteTabs) { tab in
-                            Button(notesManager.displayTitle(for: tab)) {
-                                notesManager.appendClipboardItemToTab(itemId: item.id, tabId: tab.id)
-                            }
-                        }
-                    }
-                }
-                if item.pinnedSlot == nil {
-                    Divider()
-                    Button("Pin to Next Free Slot") {
-                        notesManager.pinClipboardItemToNextFreeSlot(id: item.id)
-                    }
-                } else {
-                    Button("Unpin") { notesManager.unpinClipboardItem(id: item.id) }
-                }
-                Divider()
-                Button("To Uppercase") {
-                    notesManager.replaceClipboardItem(id: item.id, with: item.text.uppercased())
-                }
-                Button("To Lowercase") {
-                    notesManager.replaceClipboardItem(id: item.id, with: item.text.lowercased())
-                }
-                Button("To snake_case") {
-                    notesManager.toSnakeCaseClipboardItem(id: item.id)
-                }
-                Button("To kebab-case") {
-                    notesManager.toKebabCaseClipboardItem(id: item.id)
-                }
-                Button("To camelCase") {
-                    notesManager.toCamelCaseClipboardItem(id: item.id)
-                }
-                Button("Replace `_` and `-`") {
-                    notesManager.removeUnderscoreAndHyphenClipboardItem(id: item.id)
-                }
-                Button("Trim") {
-                    notesManager.replaceClipboardItem(id: item.id, with: item.text.trimmingCharacters(in: .whitespacesAndNewlines))
-                }
-                Button("Collapse Whitespace") {
-                    let collapsed = item.text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
-                    notesManager.replaceClipboardItem(id: item.id, with: collapsed)
-                }
-                Button("Convert HTML to Markdown") {
-                    notesManager.convertHtmlToMarkdownClipboardItem(id: item.id)
-                }
-                Divider()
-                Button("URL Encode") {
-                    notesManager.urlEncodeClipboardItem(id: item.id)
-                }
-                Button("URL Decode") {
-                    notesManager.urlDecodeClipboardItem(id: item.id)
-                }
-                Button("JSON Pretty Print") {
-                    notesManager.jsonPrettyPrintClipboardItem(id: item.id)
-                }
-                Button("JSON Minify") {
-                    notesManager.jsonMinifyClipboardItem(id: item.id)
-                }
-                Button("Base64 Encode") {
-                    notesManager.base64EncodeClipboardItem(id: item.id)
-                }
-                Button("Base64 Decode") {
-                    notesManager.base64DecodeClipboardItem(id: item.id)
-                }
-                Button("Escape Shell") {
-                    notesManager.escapeShellClipboardItem(id: item.id)
-                }
-                Button("Escape JSON String") {
-                    notesManager.escapeJSONStringClipboardItem(id: item.id)
-                }
-                Button("Wrap in Quotes") {
-                    notesManager.wrapInQuotesClipboardItem(id: item.id)
-                }
-                Button("Remove Quotes") {
-                    notesManager.unquoteClipboardItem(id: item.id)
-                }
-                Divider()
-                Button("Sort Lines") {
-                    notesManager.sortLinesClipboardItem(id: item.id)
-                }
-                Button("Unique Lines") {
-                    notesManager.uniqueLinesClipboardItem(id: item.id)
-                }
-                Button("Trim Each Line") {
-                    notesManager.trimEachLineClipboardItem(id: item.id)
-                }
-                Button("Reverse Lines") {
-                    notesManager.reverseLinesClipboardItem(id: item.id)
-                }
-                Button("Line Endings -> LF") {
-                    notesManager.convertToLFClipboardItem(id: item.id)
-                }
-                Button("Line Endings -> CRLF") {
-                    notesManager.convertToCRLFClipboardItem(id: item.id)
-                }
-                Divider()
-                Button("Add Prefix") {
-                    notesManager.addPrefixClipboardItem(id: item.id)
-                }
-                Button("Remove Prefix") {
-                    notesManager.removePrefixClipboardItem(id: item.id)
-                }
-                Button("Add Suffix") {
-                    notesManager.addSuffixClipboardItem(id: item.id)
-                }
-                Button("Remove Suffix") {
-                    notesManager.removeSuffixClipboardItem(id: item.id)
-                }
-                Divider()
-                Button("Extract Emails") {
-                    notesManager.extractEmailsClipboardItem(id: item.id)
-                }
-                Button("Extract URLs") {
-                    notesManager.extractURLsClipboardItem(id: item.id)
-                }
-                Divider()
-                Button("Clear Clipboard History") {
-                    notesManager.clearClipboardHistory()
-                }
+                itemMenu(for: item)
             } else {
                 Button("No Selection") {}
                     .disabled(true)
@@ -234,6 +95,139 @@ struct ClipboardView: View {
             if !newItems.contains(where: { $0.id == selected }) {
                 selection = newItems.first?.id
             }
+        }
+    }
+
+    // MARK: - Context menu
+
+    @ViewBuilder
+    private func itemMenu(for item: ClipboardItem) -> some View {
+        Button("Paste into Last App") {
+            _ = notesManager.pasteTextIntoLastApp(item.text)
+        }
+        Button("Insert to Clipboard") {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            let text: NSString = item.originalText as NSString
+            pasteboard.writeObjects([text])
+        }
+
+        Divider()
+
+        Button("Edit Item…") {
+            editItem = item
+        }
+        Menu("Append to Tab") {
+            if noteTabs.isEmpty {
+                Button("No Note Tabs") {}
+                    .disabled(true)
+            } else {
+                ForEach(noteTabs) { tab in
+                    Button(notesManager.displayTitle(for: tab)) {
+                        notesManager.appendClipboardItemToTab(itemId: item.id, tabId: tab.id)
+                    }
+                }
+            }
+        }
+        if item.pinnedSlot == nil {
+            Button("Pin to Next Free Slot") {
+                notesManager.pinClipboardItemToNextFreeSlot(id: item.id)
+            }
+        } else {
+            Button("Unpin") {
+                notesManager.unpinClipboardItem(id: item.id)
+            }
+        }
+
+        Divider()
+
+        transformMenus(for: item)
+
+        Divider()
+
+        Button("Remove Item") {
+            notesManager.removeClipboardItem(id: item.id)
+        }
+        Button("Clear Clipboard History") {
+            notesManager.clearClipboardHistory()
+        }
+    }
+
+    @ViewBuilder
+    private func transformMenus(for item: ClipboardItem) -> some View {
+        let id = item.id
+
+        Menu("Case") {
+            Button("UPPERCASE") {
+                notesManager.replaceClipboardItem(id: id, with: item.text.uppercased())
+            }
+            Button("lowercase") {
+                notesManager.replaceClipboardItem(id: id, with: item.text.lowercased())
+            }
+            Divider()
+            Button("snake_case") { notesManager.toSnakeCaseClipboardItem(id: id) }
+            Button("kebab-case") { notesManager.toKebabCaseClipboardItem(id: id) }
+            Button("camelCase") { notesManager.toCamelCaseClipboardItem(id: id) }
+            Divider()
+            Button("Replace `_` and `-` with Spaces") {
+                notesManager.removeUnderscoreAndHyphenClipboardItem(id: id)
+            }
+        }
+
+        Menu("Whitespace") {
+            Button("Trim") {
+                notesManager.replaceClipboardItem(id: id, with: item.text.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+            Button("Trim Each Line") { notesManager.trimEachLineClipboardItem(id: id) }
+            Button("Collapse Whitespace") {
+                let collapsed = item.text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+                notesManager.replaceClipboardItem(id: id, with: collapsed)
+            }
+        }
+
+        Menu("Lines") {
+            Button("Sort Lines") { notesManager.sortLinesClipboardItem(id: id) }
+            Button("Unique Lines") { notesManager.uniqueLinesClipboardItem(id: id) }
+            Button("Reverse Lines") { notesManager.reverseLinesClipboardItem(id: id) }
+            Divider()
+            Button("Line Endings → LF") { notesManager.convertToLFClipboardItem(id: id) }
+            Button("Line Endings → CRLF") { notesManager.convertToCRLFClipboardItem(id: id) }
+        }
+
+        Menu("Encode & Decode") {
+            Button("URL Encode") { notesManager.urlEncodeClipboardItem(id: id) }
+            Button("URL Decode") { notesManager.urlDecodeClipboardItem(id: id) }
+            Divider()
+            Button("Base64 Encode") { notesManager.base64EncodeClipboardItem(id: id) }
+            Button("Base64 Decode") { notesManager.base64DecodeClipboardItem(id: id) }
+            Divider()
+            Button("HTML → Markdown") { notesManager.convertHtmlToMarkdownClipboardItem(id: id) }
+        }
+
+        Menu("JSON") {
+            Button("Pretty Print") { notesManager.jsonPrettyPrintClipboardItem(id: id) }
+            Button("Minify") { notesManager.jsonMinifyClipboardItem(id: id) }
+            Button("Escape as JSON String") { notesManager.escapeJSONStringClipboardItem(id: id) }
+        }
+
+        Menu("Quotes & Escaping") {
+            Button("Wrap in Quotes") { notesManager.wrapInQuotesClipboardItem(id: id) }
+            Button("Remove Quotes") { notesManager.unquoteClipboardItem(id: id) }
+            Divider()
+            Button("Escape for Shell") { notesManager.escapeShellClipboardItem(id: id) }
+        }
+
+        Menu("Prefix & Suffix") {
+            Button("Add Prefix…") { notesManager.addPrefixClipboardItem(id: id) }
+            Button("Remove Prefix…") { notesManager.removePrefixClipboardItem(id: id) }
+            Divider()
+            Button("Add Suffix…") { notesManager.addSuffixClipboardItem(id: id) }
+            Button("Remove Suffix…") { notesManager.removeSuffixClipboardItem(id: id) }
+        }
+
+        Menu("Extract") {
+            Button("Emails") { notesManager.extractEmailsClipboardItem(id: id) }
+            Button("URLs") { notesManager.extractURLsClipboardItem(id: id) }
         }
     }
 
