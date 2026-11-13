@@ -49,13 +49,27 @@ public struct MDEditorLiteView: UIViewRepresentable {
 #elseif os(macOS)
 import AppKit
 
+/// A range to select and reveal in the editor without taking keyboard focus.
+/// A new `id` triggers the highlight again even for the same range.
+public struct MDEditorHighlight: Equatable {
+    public let id: UUID
+    public let range: NSRange
+
+    public init(id: UUID, range: NSRange) {
+        self.id = id
+        self.range = range
+    }
+}
+
 public struct MDEditorLiteView: NSViewRepresentable {
     @Binding private var text: String
     private let isEditable: Bool
+    private let highlight: MDEditorHighlight?
 
-    public init(text: Binding<String>, isEditable: Bool = true) {
+    public init(text: Binding<String>, isEditable: Bool = true, highlight: MDEditorHighlight? = nil) {
         self._text = text
         self.isEditable = isEditable
+        self.highlight = highlight
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -99,10 +113,25 @@ public struct MDEditorLiteView: NSViewRepresentable {
         textView.isEditable = isEditable
         textView.backgroundColor = .windowBackgroundColor
         textView.insertionPointColor = .textColor
+
+        if let highlight, highlight != context.coordinator.lastHighlight {
+            context.coordinator.lastHighlight = highlight
+            // Defer until the text view is laid out and attached to a window.
+            DispatchQueue.main.async {
+                let length = (textView.string as NSString).length
+                guard NSMaxRange(highlight.range) <= length else { return }
+                textView.setSelectedRange(highlight.range)
+                textView.scrollRangeToVisible(highlight.range)
+                if textView.window != nil {
+                    textView.showFindIndicator(for: highlight.range)
+                }
+            }
+        }
     }
 
     public final class Coordinator: NSObject, NSTextViewDelegate {
         private let parent: MDEditorLiteView
+        var lastHighlight: MDEditorHighlight?
 
         init(_ parent: MDEditorLiteView) {
             self.parent = parent

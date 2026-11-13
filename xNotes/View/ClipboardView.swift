@@ -8,6 +8,8 @@ import AppKit
 
 struct ClipboardView: View {
     let items: [ClipboardItem]
+    /// Clipboard item matched by the search bar; gets selected and scrolled into view.
+    var highlightedItemId: ClipboardItem.ID? = nil
     @EnvironmentObject var notesManager: NotesManager
     @State private var selection: ClipboardItem.ID?
     @State private var pendingSelection: ClipboardItem.ID?
@@ -15,6 +17,26 @@ struct ClipboardView: View {
     @AppStorage("clipboardLineLimit") private var clipboardLineLimit: Int = 4
 
     var body: some View {
+        ScrollViewReader { proxy in
+            clipboardList
+                .onAppear {
+                    revealHighlightedItem(using: proxy)
+                }
+                .onChange(of: highlightedItemId) { _, _ in
+                    revealHighlightedItem(using: proxy)
+                }
+        }
+    }
+
+    private func revealHighlightedItem(using proxy: ScrollViewProxy) {
+        guard let id = highlightedItemId, items.contains(where: { $0.id == id }) else { return }
+        selection = id
+        DispatchQueue.main.async {
+            proxy.scrollTo(id, anchor: .center)
+        }
+    }
+
+    private var clipboardList: some View {
         List(items, selection: $selection) { item in
             HStack(spacing: 6) {
                 Image(nsImage: sourceAppIcon(for: item))
