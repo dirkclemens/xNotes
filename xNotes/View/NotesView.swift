@@ -12,6 +12,10 @@ struct NotesView: View {
     @State private var isSearchVisible = false
     @State private var searchQuery = ""
     @State private var searchCursor = 0
+    /// Cached so the (potentially large) search isn't re-run on every view update.
+    @State private var searchResults: [SearchResult] = []
+    @State private var searchFocusRequest = 0
+    @State private var activeSearchResult: SearchResult?
 
     private var keepWindowOpen: Binding<Bool> { $windowSettings.keepWindowOpen }
 
@@ -33,6 +37,8 @@ struct NotesView: View {
                             query: $searchQuery,
                             resultCount: searchResults.count,
                             currentIndex: currentResultIndex,
+                            currentTabTitle: activeSearchResult?.tabTitle,
+                            focusRequest: searchFocusRequest,
                             onPrevious: { stepSearch(previous: true) },
                             onNext: { stepSearch(previous: false) },
                             onClose: closeSearch
@@ -43,8 +49,12 @@ struct NotesView: View {
                     
                     if let selectedId = notesManager.selectedTabId,
                        let tab = notesManager.tabs.first(where: { $0.id == selectedId }) {
-                        SelectedTabContentView(tab: tab)
-                            .id(tab.id)
+                        SelectedTabContentView(
+                            tab: tab,
+                            autoFocusEditor: !isSearchVisible,
+                            searchHighlight: activeSearchResult?.tabId == tab.id ? activeSearchResult : nil
+                        )
+                        .id(tab.id)
                     }
                     
                     Divider().frame(height: 1).background(.windowBackground)
@@ -53,24 +63,28 @@ struct NotesView: View {
 
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .background(.windowBackground)
-                .background(ShortcutTabMonitor())
+                .background(ShortcutTabMonitor(isSearchVisible: isSearchVisible))
                 .onChange(of: searchQuery) { _, _ in
                     searchCursor = 0
+                    refreshSearchResults()
                     applyCurrentSearchResult()
                 }
+                .onReceive(NotificationCenter.default.publisher(for: ShortcutNotifications.closeSearch)) { _ in
+                    closeSearch()
+                }
                 .onReceive(NotificationCenter.default.publisher(for: ShortcutNotifications.focusSearch)) { _ in
-                    isSearchVisible = true
+                    openSearch()
                 }
                 .onReceive(NotificationCenter.default.publisher(for: ShortcutNotifications.findNext)) { _ in
                     if !isSearchVisible {
-                        isSearchVisible = true
+                        openSearch()
                     } else {
                         stepSearch(previous: false)
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: ShortcutNotifications.findPrevious)) { _ in
                     if !isSearchVisible {
-                        isSearchVisible = true
+                        openSearch()
                     } else {
                         stepSearch(previous: true)
                     }
@@ -151,8 +165,8 @@ struct NotesView: View {
         }
     }
 
-    private var searchResults: [SearchResult] {
-        notesManager.searchResults(for: searchQuery)
+    private func refreshSearchResults() {
+        searchResults = notesManager.searchResults(for: searchQuery)
     }
 
     private var currentResultIndex: Int? {
@@ -163,19 +177,36 @@ struct NotesView: View {
     }
 
     private func stepSearch(previous: Bool) {
+        // Re-run the search so edits made since the last step are taken into account.
+        refreshSearchResults()
         guard !searchResults.isEmpty else { return }
         searchCursor += previous ? -1 : 1
         applyCurrentSearchResult()
     }
 
     private func applyCurrentSearchResult() {
-        guard let idx = currentResultIndex else { return }
-        notesManager.selectedTabId = searchResults[idx].tabId
+        let results = searchResults
+        guard !results.isEmpty else {
+            activeSearchResult = nil
+            return
+        }
+        let count = results.count
+        let result = results[((searchCursor % count) + count) % count]
+        activeSearchResult = result
+        notesManager.selectedTabId = result.tabId
+    }
+
+    private func openSearch() {
+        isSearchVisible = true
+        // Re-focus the field even when the search bar is already visible.
+        searchFocusRequest += 1
     }
 
     private func closeSearch() {
         isSearchVisible = false
         searchQuery = ""
         searchCursor = 0
+        searchResults = []
+        activeSearchResult = nil
     }
 }

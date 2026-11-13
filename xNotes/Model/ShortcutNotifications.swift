@@ -9,4 +9,5 @@ enum ShortcutNotifications {
     static let focusSearch = Notification.Name("xNotesFocusSearch")
     static let findNext = Notification.Name("xNotesFindNext")
     static let findPrevious = Notification.Name("xNotesFindPrevious")
+    static let closeSearch = Notification.Name("xNotesCloseSearch")
 }

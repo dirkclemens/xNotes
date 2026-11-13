@@ -16,6 +16,10 @@ public class MDStorage: NSTextStorage {
     private enum SystemMinimalStyle {
         static let bodyFontSize: CGFloat = 14
 
+        static var defaultFont: UniversalFont {
+            UniversalFont.systemFont(ofSize: bodyFontSize)
+        }
+
         private struct StyleSpec {
             var color: UniversalColor?
             var backgroundColor: UniversalColor?
@@ -38,32 +42,37 @@ public class MDStorage: NSTextStorage {
             }
         }
 
-        static let bodyAttributes: [NSAttributedString.Key: Any] = {
-            var attributes = makeAttributes(StyleSpec(size: bodyFontSize))
+        static func bodyAttributes(font: UniversalFont) -> [NSAttributedString.Key: Any] {
+            var attributes = makeAttributes(StyleSpec(), font: font)
             attributes[.foregroundColor] = defaultTextColor()
             return attributes
-        }()
+        }
 
-        static let styles: [MDStyle] = [
-            MDStyle(element: .h1, attributes: makeAttributes(StyleSpec(color: color(lightHex: "#0566D6", darkHex: "#0566D6"), size: bodyFontSize, traits: "bold"))),
-            MDStyle(element: .h2, attributes: makeAttributes(StyleSpec(color: color(lightHex: "#0566D6", darkHex: "#0566D6"), size: bodyFontSize, traits: "bold"))),
-            MDStyle(element: .h3, attributes: makeAttributes(StyleSpec(color: color(lightHex: "#0566D6", darkHex: "#0566D6"), size: bodyFontSize, traits: "bold"))),
-            MDStyle(element: .h4, attributes: makeAttributes(StyleSpec(color: color(lightHex: "#0566D6", darkHex: "#0566D6"), size: bodyFontSize, traits: "bold"))),
-            MDStyle(element: .bold, attributes: makeAttributes(StyleSpec(color: color(lightHex: "#AC1201", darkHex: "#AC1201"), traits: "bold"))),
-            MDStyle(element: .italic, attributes: makeAttributes(StyleSpec(color: color(lightHex: "#C678DD", darkHex: "#C678DD"), traits: "italic"))),
-            MDStyle(element: .strikethrough, attributes: makeAttributes(StyleSpec(strikethroughStyle: .single))),
-            MDStyle(element: .code, attributes: makeAttributes(StyleSpec(color: color(lightHex: "#21863B", darkHex: "#21863B")))),
-            MDStyle(element: .codeBlock, attributes: makeAttributes(StyleSpec(color: color(lightHex: "#21863B", darkHex: "#21863B"), backgroundColor: color(lightHex: "#FFF6DC", darkHex: "#FFF6DC")))),
-            MDStyle(element: .blockquote, attributes: makeAttributes(StyleSpec(
-                backgroundColor: color(lightHex: "#D9D9D9", darkHex: "#A0A0A0"), traits: "bold"))),
-            MDStyle(regex: "[@＠][a-zA-Z0-9_]{1,20}".toRegexOrAssertionFailure(), attributes: makeAttributes(StyleSpec(color: color(lightHex: "#78ddd5", darkHex: "#56B6C2")))),
-            MDStyle(element: .url, attributes: makeAttributes(StyleSpec(color: color(lightHex: "#017AFF", darkHex: "#017AFF")))),
-            MDStyle(element: .image, attributes: makeAttributes(StyleSpec(color: color(lightHex: "#78AEDD", darkHex: "#61AFEF"))))
-        ]
+        static func styles(font: UniversalFont) -> [MDStyle] {
+            func attrs(_ spec: StyleSpec) -> [NSAttributedString.Key: Any] {
+                makeAttributes(spec, font: font)
+            }
+            let headingColor = color(lightHex: "#0566D6", darkHex: "#0566D6")
+            return [
+                MDStyle(element: .h1, attributes: attrs(StyleSpec(color: headingColor, traits: "bold"))),
+                MDStyle(element: .h2, attributes: attrs(StyleSpec(color: headingColor, traits: "bold"))),
+                MDStyle(element: .h3, attributes: attrs(StyleSpec(color: headingColor, traits: "bold"))),
+                MDStyle(element: .h4, attributes: attrs(StyleSpec(color: headingColor, traits: "bold"))),
+                MDStyle(element: .bold, attributes: attrs(StyleSpec(color: color(lightHex: "#AC1201", darkHex: "#AC1201"), traits: "bold"))),
+                MDStyle(element: .italic, attributes: attrs(StyleSpec(color: color(lightHex: "#C678DD", darkHex: "#C678DD"), traits: "italic"))),
+                MDStyle(element: .strikethrough, attributes: attrs(StyleSpec(strikethroughStyle: .single))),
+                MDStyle(element: .code, attributes: attrs(StyleSpec(color: color(lightHex: "#21863B", darkHex: "#21863B")))),
+                MDStyle(element: .codeBlock, attributes: attrs(StyleSpec(color: color(lightHex: "#21863B", darkHex: "#21863B"), backgroundColor: color(lightHex: "#FFF6DC", darkHex: "#FFF6DC")))),
+                MDStyle(element: .blockquote, attributes: attrs(StyleSpec(
+                    backgroundColor: color(lightHex: "#D9D9D9", darkHex: "#A0A0A0"), traits: "bold"))),
+                MDStyle(regex: "[@＠][a-zA-Z0-9_]{1,20}".toRegexOrAssertionFailure(), attributes: attrs(StyleSpec(color: color(lightHex: "#78ddd5", darkHex: "#56B6C2")))),
+                MDStyle(element: .url, attributes: attrs(StyleSpec(color: color(lightHex: "#017AFF", darkHex: "#017AFF")))),
+                MDStyle(element: .image, attributes: attrs(StyleSpec(color: color(lightHex: "#78AEDD", darkHex: "#61AFEF"))))
+            ]
+        }
 
-        private static func makeAttributes(_ spec: StyleSpec) -> [NSAttributedString.Key: Any] {
-            let fontSize = spec.size ?? bodyFontSize
-            let baseFont = UniversalFont.systemFont(ofSize: fontSize)
+        private static func makeAttributes(_ spec: StyleSpec, font baseFont: UniversalFont) -> [NSAttributedString.Key: Any] {
+            let fontSize = spec.size ?? baseFont.pointSize
             let font = baseFont.with(traits: spec.traits, size: fontSize) ?? baseFont
 
             var attributes: [NSAttributedString.Key: Any] = [.font: font]
@@ -120,6 +129,26 @@ public class MDStorage: NSTextStorage {
 
     /// The underlying text storage implementation.
     var backingStore = NSTextStorage()
+
+    /// Base font used for body text; Markdown styles derive their traits from it.
+    public private(set) var baseFont: UniversalFont = SystemMinimalStyle.defaultFont
+    private lazy var bodyAttributes: [NSAttributedString.Key: Any] = SystemMinimalStyle.bodyAttributes(font: baseFont)
+    private lazy var styles: [MDStyle] = SystemMinimalStyle.styles(font: baseFont)
+
+    /// Changes the base font and restyles the whole document.
+    public func setBaseFont(_ font: UniversalFont) {
+        guard font != baseFont else { return }
+        baseFont = font
+        bodyAttributes = SystemMinimalStyle.bodyAttributes(font: font)
+        styles = SystemMinimalStyle.styles(font: font)
+
+        let fullRange = NSRange(location: 0, length: backingStore.length)
+        guard fullRange.length > 0 else { return }
+        beginEditing()
+        applyStyles(fullRange)
+        edited(.editedAttributes, range: fullRange, changeInLength: 0)
+        endEditing()
+    }
 
     override public var string: String {
         get {
@@ -215,9 +244,9 @@ public class MDStorage: NSTextStorage {
     /// - parameter range: The range in which to apply styles.
     func applyStyles(_ range: NSRange) {
         let backingString = backingStore.string
-        backingStore.setAttributes(SystemMinimalStyle.bodyAttributes, range: range)
+        backingStore.setAttributes(bodyAttributes, range: range)
 
-        for (style) in SystemMinimalStyle.styles {
+        for style in styles {
             style.regex.enumerateMatches(in: backingString, options: .withoutAnchoringBounds, range: range, using: { (match, flags, stop) in
                 guard let match = match else { return }
                 backingStore.addAttributes(style.attributes, range: match.range(at: 0))
