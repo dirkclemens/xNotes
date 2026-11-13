@@ -17,10 +17,7 @@ struct TabsFileStore {
 
     init(legacyDefaultsKey: String, fileName: String = "tabs.json") {
         self.legacyDefaultsKey = legacyDefaultsKey
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-        let folder = base.appendingPathComponent(Bundle.main.bundleIdentifier ?? "xNotes", isDirectory: true)
-        self.fileURL = folder.appendingPathComponent(fileName)
+        self.fileURL = AppPaths.applicationSupport.appendingPathComponent(fileName)
     }
 
     func load() -> [NoteTab]? {
@@ -44,13 +41,13 @@ struct TabsFileStore {
     /// Writes synchronously, e.g. right before the app terminates.
     func saveImmediately(_ tabs: [NoteTab]) {
         guard let data = try? JSONEncoder().encode(tabs) else { return }
-        writeQueue.sync {
+        _ = writeQueue.sync {
             write(data)
         }
     }
 
     @discardableResult
-    private func write(_ data: Data) -> Bool {
+    nonisolated private func write(_ data: Data) -> Bool {
         do {
             try FileManager.default.createDirectory(
                 at: fileURL.deletingLastPathComponent(),

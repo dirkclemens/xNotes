@@ -11,6 +11,7 @@ struct ClipboardView: View {
     /// Clipboard item matched by the search bar; gets selected and scrolled into view.
     var highlightedItemId: ClipboardItem.ID? = nil
     @EnvironmentObject var notesManager: NotesManager
+    @ObservedObject private var transformRegistry = TransformRegistry.shared
     @State private var selection: ClipboardItem.ID?
     @State private var pendingSelection: ClipboardItem.ID?
     @State private var editItem: ClipboardItem?
@@ -26,6 +27,14 @@ struct ClipboardView: View {
                     revealHighlightedItem(using: proxy)
                 }
         }
+        .overlay(alignment: .bottom) {
+            if let message = transformRegistry.message {
+                TransformMessageBanner(message: message)
+                    .padding(8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: transformRegistry.message)
     }
 
     private func revealHighlightedItem(using proxy: ScrollViewProxy) {
@@ -155,79 +164,46 @@ struct ClipboardView: View {
 
     @ViewBuilder
     private func transformMenus(for item: ClipboardItem) -> some View {
-        let id = item.id
-
-        Menu("Case") {
-            Button("UPPERCASE") {
-                notesManager.replaceClipboardItem(id: id, with: item.text.uppercased())
-            }
-            Button("lowercase") {
-                notesManager.replaceClipboardItem(id: id, with: item.text.lowercased())
-            }
-            Divider()
-            Button("snake_case") { notesManager.toSnakeCaseClipboardItem(id: id) }
-            Button("kebab-case") { notesManager.toKebabCaseClipboardItem(id: id) }
-            Button("camelCase") { notesManager.toCamelCaseClipboardItem(id: id) }
-            Divider()
-            Button("Replace `_` and `-` with Spaces") {
-                notesManager.removeUnderscoreAndHyphenClipboardItem(id: id)
+        ForEach(transformRegistry.groups) { group in
+            Menu(group.name) {
+                ForEach(Array(group.sections.enumerated()), id: \.offset) { index, section in
+                    if index > 0 {
+                        Divider()
+                    }
+                    ForEach(section) { transform in
+                        transformButton(transform, item: item)
+                    }
+                }
             }
         }
 
-        Menu("Whitespace") {
-            Button("Trim") {
-                notesManager.replaceClipboardItem(id: id, with: item.text.trimmingCharacters(in: .whitespacesAndNewlines))
+        Menu("Plugins") {
+            ForEach(transformRegistry.ungroupedPlugins) { transform in
+                transformButton(transform, item: item)
             }
-            Button("Trim Each Line") { notesManager.trimEachLineClipboardItem(id: id) }
-            Button("Collapse Whitespace") {
-                let collapsed = item.text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
-                notesManager.replaceClipboardItem(id: id, with: collapsed)
+            if !transformRegistry.ungroupedPlugins.isEmpty {
+                Divider()
+            }
+            if !transformRegistry.loadErrors.isEmpty {
+                Menu("Load Errors (\(transformRegistry.loadErrors.count))") {
+                    ForEach(transformRegistry.loadErrors) { error in
+                        Button("\(error.fileName): \(error.message)") {}
+                            .disabled(true)
+                    }
+                }
+            }
+            Button("Open Plugins Folder") {
+                transformRegistry.openPluginFolder()
+            }
+            Button("Reload Plugins") {
+                transformRegistry.reload(announce: true)
             }
         }
+    }
 
-        Menu("Lines") {
-            Button("Sort Lines") { notesManager.sortLinesClipboardItem(id: id) }
-            Button("Unique Lines") { notesManager.uniqueLinesClipboardItem(id: id) }
-            Button("Reverse Lines") { notesManager.reverseLinesClipboardItem(id: id) }
-            Divider()
-            Button("Line Endings → LF") { notesManager.convertToLFClipboardItem(id: id) }
-            Button("Line Endings → CRLF") { notesManager.convertToCRLFClipboardItem(id: id) }
-        }
-
-        Menu("Encode & Decode") {
-            Button("URL Encode") { notesManager.urlEncodeClipboardItem(id: id) }
-            Button("URL Decode") { notesManager.urlDecodeClipboardItem(id: id) }
-            Divider()
-            Button("Base64 Encode") { notesManager.base64EncodeClipboardItem(id: id) }
-            Button("Base64 Decode") { notesManager.base64DecodeClipboardItem(id: id) }
-            Divider()
-            Button("HTML → Markdown") { notesManager.convertHtmlToMarkdownClipboardItem(id: id) }
-        }
-
-        Menu("JSON") {
-            Button("Pretty Print") { notesManager.jsonPrettyPrintClipboardItem(id: id) }
-            Button("Minify") { notesManager.jsonMinifyClipboardItem(id: id) }
-            Button("Escape as JSON String") { notesManager.escapeJSONStringClipboardItem(id: id) }
-        }
-
-        Menu("Quotes & Escaping") {
-            Button("Wrap in Quotes") { notesManager.wrapInQuotesClipboardItem(id: id) }
-            Button("Remove Quotes") { notesManager.unquoteClipboardItem(id: id) }
-            Divider()
-            Button("Escape for Shell") { notesManager.escapeShellClipboardItem(id: id) }
-        }
-
-        Menu("Prefix & Suffix") {
-            Button("Add Prefix…") { notesManager.addPrefixClipboardItem(id: id) }
-            Button("Remove Prefix…") { notesManager.removePrefixClipboardItem(id: id) }
-            Divider()
-            Button("Add Suffix…") { notesManager.addSuffixClipboardItem(id: id) }
-            Button("Remove Suffix…") { notesManager.removeSuffixClipboardItem(id: id) }
-        }
-
-        Menu("Extract") {
-            Button("Emails") { notesManager.extractEmailsClipboardItem(id: id) }
-            Button("URLs") { notesManager.extractURLsClipboardItem(id: id) }
+    private func transformButton(_ transform: ClipboardTransform, item: ClipboardItem) -> some View {
+        Button(transform.menuTitle) {
+            notesManager.applyTransform(transform, toClipboardItem: item.id)
         }
     }
 
@@ -266,5 +242,24 @@ struct ClipboardView: View {
             return NSWorkspace.shared.icon(forFile: appURL.path)
         }
         return NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "Clipboard") ?? NSImage()
+    }
+}
+
+/// Short, non-blocking feedback after running a transform (errors, "no change", plugin reload).
+private struct TransformMessageBanner: View {
+    let message: TransformMessage
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: message.isError ? "exclamationmark.triangle.fill" : "info.circle")
+                .foregroundColor(message.isError ? .orange : .secondary)
+            Text(message.text)
+                .font(.caption)
+                .lineLimit(3)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .shadow(color: .black.opacity(0.15), radius: 4, y: 1)
     }
 }

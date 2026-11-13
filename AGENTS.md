@@ -6,6 +6,7 @@
 - `xNotes/Model/` contains data models and persistence payloads.
 - `xNotes/View/` contains SwiftUI views.
 - `xNotes/MDEditorLite/` provides the custom editor implementation.
+- `xNotes/Transforms/` contains clipboard text transforms: built-ins, the JavaScript plugin loader, and `TransformRegistry`.
 - `xNotes/Assets.xcassets/` stores app assets.
 
 ## Build, Test, and Development Commands
@@ -35,5 +36,8 @@
   - Notes on any data or settings migrations.
 
 ## Data & Configuration Notes
-- Notes and clipboard state are stored in `UserDefaults` (see `NotesManager`).
+- Notes and clipboard state are stored in `~/Library/Application Support/<bundle id>/tabs.json` (see `TabsFileStore`); older builds used `UserDefaults` and are migrated on first launch.
+- Settings are stored in `UserDefaults` (`@AppStorage`).
+- Clipboard transform plugins are `.js` files in `~/Library/Application Support/<bundle id>/Transforms/` (format: see the README seeded there and `JavaScriptTransformLoader`). New built-in transforms go into `BuiltinTransforms.all`; the context menu is generated from `TransformRegistry`.
+- The target uses `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`; code that runs off the main thread must be marked `nonisolated`.
 - Backups are JSON payloads (`AppBackup`). If you add fields, keep decoding backward-compatible.
