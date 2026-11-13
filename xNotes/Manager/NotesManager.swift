@@ -17,6 +17,7 @@ class NotesManager: ObservableObject {
     private var saveTask: Task<Void, Never>?
     private let saveDelay: TimeInterval = 1.0
     private let storageKey = "savedNotes"
+    private lazy var tabsStore = TabsFileStore(legacyDefaultsKey: storageKey)
     private let clipboardMaxItemsKey = "clipboardMaxItems"
     private let pasteAsPlainTextKey = "pasteAsPlainText"
     private let pasteNormalizeLFKey = "pasteNormalizeLF"
@@ -116,6 +117,7 @@ class NotesManager: ObservableObject {
             try? await Task.sleep(nanoseconds: UInt64(saveDelay * 1_000_000_000))
             guard !Task.isCancelled else { return }
             await MainActor.run {
+                self.saveTask = nil
                 self.pruneExpiredTabs(persist: false)
                 self.saveTabs()
             }
@@ -123,37 +125,21 @@ class NotesManager: ObservableObject {
     }
     
     private func saveTabs() {
-        let codableTabs = tabs.map { tab in
-            NoteTab(
-                id: tab.id,
-                content: tab.content,
-                color: tab.color,
-                title: tab.title,
-                isLocked: tab.isLocked,
-                kind: tab.kind,
-                clipboardItems: tab.clipboardItems,
-                lastEditedAt: tab.lastEditedAt
-            )
-        }
-        if let encoded = try? JSONEncoder().encode(codableTabs) {
-            UserDefaults.standard.set(encoded, forKey: storageKey)
-        }
+        tabsStore.save(tabs)
     }
+
+    /// Writes pending changes synchronously, e.g. when the app is about to quit.
+    func flushPendingSave() {
+        guard saveTask != nil else { return }
+        saveTask?.cancel()
+        saveTask = nil
+        pruneExpiredTabs(persist: false)
+        tabsStore.saveImmediately(tabs)
+    }
+
     private func loadTabs() {
-        if let data = UserDefaults.standard.data(forKey: storageKey),
-           let decoded = try? JSONDecoder().decode([NoteTab].self, from: data) {
-            tabs = decoded.map {
-                NoteTab(
-                    id: $0.id,
-                    content: $0.content,
-                    color: $0.color,
-                    title: $0.title,
-                    isLocked: $0.isLocked,
-                    kind: $0.kind,
-                    clipboardItems: $0.clipboardItems,
-                    lastEditedAt: $0.lastEditedAt
-                )
-            }
+        if let loaded = tabsStore.load() {
+            tabs = loaded
         }
     }
 

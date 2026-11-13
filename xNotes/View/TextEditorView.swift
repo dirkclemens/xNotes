@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct TextEditorView: View {
     @Binding var content: String
@@ -15,7 +16,7 @@ struct TextEditorView: View {
     @AppStorage("editorFontSize") private var editorFontSize: Double = 14
 
     var body: some View {
-        MDEditorLiteView(text: $content, highlight: highlight)
+        MDEditorLiteView(text: $content, font: editorFont, highlight: highlight)
             .scrollContentBackground(.hidden)
             .focused($isFocused)
             .onAppear {
@@ -38,14 +39,17 @@ struct TextEditorView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
-    private var selectedEditorFont: Font {
+    private var editorFont: NSFont {
+        let size = CGFloat(editorFontSize)
         switch editorFontName {
         case "__system__":
-            return .system(size: CGFloat(editorFontSize))
-        case "__systemMonospaced__":
-            return .system(size: CGFloat(editorFontSize), design: .monospaced)
+            return .systemFont(ofSize: size)
+        case "__systemMonospaced__", "SF Mono":
+            // SF Mono is not installed system-wide on every macOS version;
+            // the monospaced system font *is* SF Mono.
+            return NSFont(name: "SFMono-Regular", size: size) ?? .monospacedSystemFont(ofSize: size, weight: .regular)
         default:
-            return .custom(editorFontName, size: CGFloat(editorFontSize))
+            return NSFont(name: editorFontName, size: size) ?? .monospacedSystemFont(ofSize: size, weight: .regular)
         }
     }
 }

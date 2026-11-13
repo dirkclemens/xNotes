@@ -92,6 +92,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            notesManager.flushPendingSave()
+        }
+    }
+
     @objc func togglePopover(_ sender: AnyObject?) {
         guard let event = NSApp.currentEvent else { return }
         if event.type == .rightMouseUp {
