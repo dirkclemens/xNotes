@@ -11,6 +11,7 @@ struct ClipboardView: View {
     /// Clipboard item matched by the search bar; gets selected and scrolled into view.
     var highlightedItemId: ClipboardItem.ID? = nil
     @EnvironmentObject var notesManager: NotesManager
+    @ObservedObject private var transformRegistry = TransformRegistry.shared
     @State private var selection: ClipboardItem.ID?
     @State private var pendingSelection: ClipboardItem.ID?
     @State private var editItem: ClipboardItem?
@@ -26,6 +27,14 @@ struct ClipboardView: View {
                     revealHighlightedItem(using: proxy)
                 }
         }
+        .overlay(alignment: .bottom) {
+            if let message = transformRegistry.message {
+                TransformMessageBanner(message: message)
+                    .padding(8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: transformRegistry.message)
     }
 
     private func revealHighlightedItem(using proxy: ScrollViewProxy) {
@@ -62,146 +71,7 @@ struct ClipboardView: View {
         .contextMenu(forSelectionType: ClipboardItem.ID.self, menu: { selectedIds in
             if let selectedId = selectedIds.first,
                let item = items.first(where: { $0.id == selectedId }) {
-                Button("Insert to Clipboard") {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    //pasteboard.setString(item.text, forType: .string)
-                    let text: NSString = item.originalText as NSString
-                    pasteboard.writeObjects([text])
-                }
-                Button("Paste into Last App") {
-                    _ = notesManager.pasteTextIntoLastApp(item.text)
-                }
-                Divider()
-                Button("Edit Item") {
-                    editItem = item
-                }
-                Button("Remove Item") {
-                    notesManager.removeClipboardItem(id: item.id)
-                }
-                Menu("Append to Tab") {
-                    if noteTabs.isEmpty {
-                        Button("No Note Tabs") {}
-                            .disabled(true)
-                    } else {
-                        ForEach(noteTabs) { tab in
-                            Button(notesManager.displayTitle(for: tab)) {
-                                notesManager.appendClipboardItemToTab(itemId: item.id, tabId: tab.id)
-                            }
-                        }
-                    }
-                }
-                if item.pinnedSlot == nil {
-                    Divider()
-                    Button("Pin to Next Free Slot") {
-                        notesManager.pinClipboardItemToNextFreeSlot(id: item.id)
-                    }
-                } else {
-                    Button("Unpin") { notesManager.unpinClipboardItem(id: item.id) }
-                }
-                Divider()
-                Button("To Uppercase") {
-                    notesManager.replaceClipboardItem(id: item.id, with: item.text.uppercased())
-                }
-                Button("To Lowercase") {
-                    notesManager.replaceClipboardItem(id: item.id, with: item.text.lowercased())
-                }
-                Button("To snake_case") {
-                    notesManager.toSnakeCaseClipboardItem(id: item.id)
-                }
-                Button("To kebab-case") {
-                    notesManager.toKebabCaseClipboardItem(id: item.id)
-                }
-                Button("To camelCase") {
-                    notesManager.toCamelCaseClipboardItem(id: item.id)
-                }
-                Button("Replace `_` and `-`") {
-                    notesManager.removeUnderscoreAndHyphenClipboardItem(id: item.id)
-                }
-                Button("Trim") {
-                    notesManager.replaceClipboardItem(id: item.id, with: item.text.trimmingCharacters(in: .whitespacesAndNewlines))
-                }
-                Button("Collapse Whitespace") {
-                    let collapsed = item.text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
-                    notesManager.replaceClipboardItem(id: item.id, with: collapsed)
-                }
-                Button("Convert HTML to Markdown") {
-                    notesManager.convertHtmlToMarkdownClipboardItem(id: item.id)
-                }
-                Divider()
-                Button("URL Encode") {
-                    notesManager.urlEncodeClipboardItem(id: item.id)
-                }
-                Button("URL Decode") {
-                    notesManager.urlDecodeClipboardItem(id: item.id)
-                }
-                Button("JSON Pretty Print") {
-                    notesManager.jsonPrettyPrintClipboardItem(id: item.id)
-                }
-                Button("JSON Minify") {
-                    notesManager.jsonMinifyClipboardItem(id: item.id)
-                }
-                Button("Base64 Encode") {
-                    notesManager.base64EncodeClipboardItem(id: item.id)
-                }
-                Button("Base64 Decode") {
-                    notesManager.base64DecodeClipboardItem(id: item.id)
-                }
-                Button("Escape Shell") {
-                    notesManager.escapeShellClipboardItem(id: item.id)
-                }
-                Button("Escape JSON String") {
-                    notesManager.escapeJSONStringClipboardItem(id: item.id)
-                }
-                Button("Wrap in Quotes") {
-                    notesManager.wrapInQuotesClipboardItem(id: item.id)
-                }
-                Button("Remove Quotes") {
-                    notesManager.unquoteClipboardItem(id: item.id)
-                }
-                Divider()
-                Button("Sort Lines") {
-                    notesManager.sortLinesClipboardItem(id: item.id)
-                }
-                Button("Unique Lines") {
-                    notesManager.uniqueLinesClipboardItem(id: item.id)
-                }
-                Button("Trim Each Line") {
-                    notesManager.trimEachLineClipboardItem(id: item.id)
-                }
-                Button("Reverse Lines") {
-                    notesManager.reverseLinesClipboardItem(id: item.id)
-                }
-                Button("Line Endings -> LF") {
-                    notesManager.convertToLFClipboardItem(id: item.id)
-                }
-                Button("Line Endings -> CRLF") {
-                    notesManager.convertToCRLFClipboardItem(id: item.id)
-                }
-                Divider()
-                Button("Add Prefix") {
-                    notesManager.addPrefixClipboardItem(id: item.id)
-                }
-                Button("Remove Prefix") {
-                    notesManager.removePrefixClipboardItem(id: item.id)
-                }
-                Button("Add Suffix") {
-                    notesManager.addSuffixClipboardItem(id: item.id)
-                }
-                Button("Remove Suffix") {
-                    notesManager.removeSuffixClipboardItem(id: item.id)
-                }
-                Divider()
-                Button("Extract Emails") {
-                    notesManager.extractEmailsClipboardItem(id: item.id)
-                }
-                Button("Extract URLs") {
-                    notesManager.extractURLsClipboardItem(id: item.id)
-                }
-                Divider()
-                Button("Clear Clipboard History") {
-                    notesManager.clearClipboardHistory()
-                }
+                itemMenu(for: item)
             } else {
                 Button("No Selection") {}
                     .disabled(true)
@@ -234,6 +104,106 @@ struct ClipboardView: View {
             if !newItems.contains(where: { $0.id == selected }) {
                 selection = newItems.first?.id
             }
+        }
+    }
+
+    // MARK: - Context menu
+
+    @ViewBuilder
+    private func itemMenu(for item: ClipboardItem) -> some View {
+        Button("Paste into Last App") {
+            _ = notesManager.pasteTextIntoLastApp(item.text)
+        }
+        Button("Insert to Clipboard") {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            let text: NSString = item.originalText as NSString
+            pasteboard.writeObjects([text])
+        }
+
+        Divider()
+
+        Button("Edit Item…") {
+            editItem = item
+        }
+        Menu("Append to Tab") {
+            if noteTabs.isEmpty {
+                Button("No Note Tabs") {}
+                    .disabled(true)
+            } else {
+                ForEach(noteTabs) { tab in
+                    Button(notesManager.displayTitle(for: tab)) {
+                        notesManager.appendClipboardItemToTab(itemId: item.id, tabId: tab.id)
+                    }
+                }
+            }
+        }
+        if item.pinnedSlot == nil {
+            Button("Pin to Next Free Slot") {
+                notesManager.pinClipboardItemToNextFreeSlot(id: item.id)
+            }
+        } else {
+            Button("Unpin") {
+                notesManager.unpinClipboardItem(id: item.id)
+            }
+        }
+
+        Divider()
+
+        transformMenus(for: item)
+
+        Divider()
+
+        Button("Remove Item") {
+            notesManager.removeClipboardItem(id: item.id)
+        }
+        Button("Clear Clipboard History") {
+            notesManager.clearClipboardHistory()
+        }
+    }
+
+    @ViewBuilder
+    private func transformMenus(for item: ClipboardItem) -> some View {
+        ForEach(transformRegistry.groups) { group in
+            Menu(group.name) {
+                ForEach(Array(group.sections.enumerated()), id: \.offset) { index, section in
+                    if index > 0 {
+                        Divider()
+                    }
+                    ForEach(section) { transform in
+                        transformButton(transform, item: item)
+                    }
+                }
+            }
+        }
+
+        Menu("Plugins") {
+            ForEach(transformRegistry.ungroupedPlugins) { transform in
+                transformButton(transform, item: item)
+            }
+            if !transformRegistry.ungroupedPlugins.isEmpty {
+                Divider()
+            }
+            if !transformRegistry.loadErrors.isEmpty {
+                Menu("Load Errors (\(transformRegistry.loadErrors.count))") {
+                    ForEach(transformRegistry.loadErrors) { error in
+                        Button("\(error.fileName): \(error.message)") {}
+                            .disabled(true)
+                    }
+                }
+            }
+            Button("Open Plugins Folder") {
+                transformRegistry.openPluginFolder()
+            }
+            Button("Reload Plugins") {
+                transformRegistry.reload(announce: true)
+            }
+        }
+    }
+
+    private func transformButton(_ transform: ClipboardTransform, item: ClipboardItem) -> some View {
+        Button(transform.menuTitle) {
+            notesManager.applyTransform(transform, toClipboardItem: item.id)
         }
     }
 
@@ -272,5 +242,24 @@ struct ClipboardView: View {
             return NSWorkspace.shared.icon(forFile: appURL.path)
         }
         return NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "Clipboard") ?? NSImage()
+    }
+}
+
+/// Short, non-blocking feedback after running a transform (errors, "no change", plugin reload).
+private struct TransformMessageBanner: View {
+    let message: TransformMessage
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: message.isError ? "exclamationmark.triangle.fill" : "info.circle")
+                .foregroundColor(message.isError ? .orange : .secondary)
+            Text(message.text)
+                .font(.caption)
+                .lineLimit(3)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .shadow(color: .black.opacity(0.15), radius: 4, y: 1)
     }
 }
