@@ -65,11 +65,19 @@ public struct MDEditorLiteView: NSViewRepresentable {
     @Binding private var text: String
     private let isEditable: Bool
     private let highlight: MDEditorHighlight?
+    private let font: NSFont?
 
-    public init(text: Binding<String>, isEditable: Bool = true, highlight: MDEditorHighlight? = nil) {
+    public init(text: Binding<String>, isEditable: Bool = true, font: NSFont? = nil, highlight: MDEditorHighlight? = nil) {
         self._text = text
         self.isEditable = isEditable
+        self.font = font
         self.highlight = highlight
+    }
+
+    private func applyFont(to textView: MDEditorLite) {
+        guard let font else { return }
+        textView.storage.setBaseFont(font)
+        textView.typingAttributes[.font] = font
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -86,6 +94,7 @@ public struct MDEditorLiteView: NSViewRepresentable {
         let textView = MDEditorLite(frame: .zero)
         textView.delegate = context.coordinator
         textView.isEditable = isEditable
+        applyFont(to: textView)
         textView.string = text
         textView.minSize = NSSize(width: 0, height: 0)
         textView.maxSize = NSSize(width: Swift.Double.greatestFiniteMagnitude, height: Swift.Double.greatestFiniteMagnitude)
@@ -113,6 +122,7 @@ public struct MDEditorLiteView: NSViewRepresentable {
         textView.isEditable = isEditable
         textView.backgroundColor = .windowBackgroundColor
         textView.insertionPointColor = .textColor
+        applyFont(to: textView)
 
         if let highlight, highlight != context.coordinator.lastHighlight {
             context.coordinator.lastHighlight = highlight
