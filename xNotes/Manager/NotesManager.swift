@@ -17,7 +17,10 @@ class NotesManager: ObservableObject {
     private var saveTask: Task<Void, Never>?
     private let saveDelay: TimeInterval = 1.0
     private let storageKey = "savedNotes"
-    private lazy var tabsStore = TabsFileStore(legacyDefaultsKey: storageKey)
+    private lazy var tabsStore = TabsFileStore(
+        legacyDefaultsKey: storageKey,
+        fileName: DemoMode.isEnabled ? "tabs-demo.json" : "tabs.json"
+    )
     private let clipboardMaxItemsKey = "clipboardMaxItems"
     private let pasteAsPlainTextKey = "pasteAsPlainText"
     private let pasteNormalizeLFKey = "pasteNormalizeLF"
@@ -38,7 +41,9 @@ class NotesManager: ObservableObject {
         }
         selectedTabId = tabs.first?.id
         trackLastActiveApp()
-        startClipboardMonitor()
+        if !DemoMode.isEnabled {
+            startClipboardMonitor()
+        }
     }
     
     func addTab() {
@@ -138,6 +143,12 @@ class NotesManager: ObservableObject {
     }
 
     private func loadTabs() {
+        #if DEBUG
+        if DemoMode.isEnabled {
+            tabs = DemoData.tabs()
+            return
+        }
+        #endif
         if let loaded = tabsStore.load() {
             tabs = loaded
         }

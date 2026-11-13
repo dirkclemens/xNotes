@@ -12,12 +12,15 @@ xNotes is a lightweight macOS menu bar notes app that keeps notes in colour-code
 - Clipboard history tab (always visible)
 - Pinned clipboard slots (max 9)
 - Source app name and icon for clipboard items
-- Clipboard item transformations (case, JSON, URL, Base64, line tools, etc.)
+- Clipboard item transformations (case, JSON, URL, Base64, line tools, etc.), grouped in submenus
+- Extensible with your own transformations as JavaScript plugins — no rebuild needed
+- Filter field in the clipboard-only panel
 - Text expansion rules and quick inserts
-- Search across tab titles and content
+- Search across tab titles, note content and clipboard history
 - Export notes to text
 - Backup export/import (JSON)
 - Editor font and size settings
+- Light and dark mode
 - Optional "keep window open" pin
 
 ## Requirements
@@ -52,17 +55,36 @@ Alternatively, right-click the app in Finder and choose "Open".
 - Duplicates are deduplicated; newest moves to top
 - Pinned items stay at the top and are not removable
 - Right-click an item for transformations and actions
+- In the clipboard-only panel, type to filter; Return pastes the first match into the last app
+
+### Clipboard Transform Plugins
+Every `.js` file in `~/Library/Application Support/de.adcore.xNotes/Transforms/` adds an entry to the clipboard context menu. Changes are picked up automatically. A README and three example plugins are created there on first launch (context menu ▸ Plugins ▸ Open Plugins Folder).
+
+```js
+/**
+ * @title  Title Case
+ * @group  Case                 (existing or new submenu; default "Plugins")
+ * @input  Prefix:              (optional: asks for a value → ctx.argument)
+ */
+function transform(input, ctx) {
+  return input.replace(/\b\w/g, c => c.toUpperCase()); // null/undefined = no change
+}
+```
+
+Plugins run in an isolated JavaScript context without file or network access and are stopped after 3 seconds. `throw new Error("…")` shows the message in xNotes; files that fail to load are listed under Plugins ▸ Load Errors.
 
 ### Search
-- Search matches tab titles and content
-- Navigation jumps to matching tabs
+- `⌘F` searches tab titles, note content and clipboard history
+- Every occurrence is a result; the match is highlighted in the editor, clipboard matches are selected in the list
+- `Return` / `⌘G` next result, `⇧⌘G` previous result, `Esc` closes the search
 
 ### Shortcuts
 - `⌘1` … `⌘9` select tabs 1–9
 - `⌥1` … `⌥9` paste pinned clipboard slots 1–9 (when Clipboard tab is active)
-- `⌘F` open search
-- `⌘G` next result
+- `⌘F` open search (or focus the filter in the clipboard-only panel)
+- `⌘G` / `Return` next result
 - `⇧⌘G` previous result
+- `Esc` close search, then close the panel
 - Right‑click the menu bar icon for export/backup/quit
 
 ### Backup
@@ -73,7 +95,11 @@ Alternatively, right-click the app in Finder and choose "Open".
 - Pasting into other apps requires Accessibility permission for xNotes.
 
 ## Notes
-- Notes are stored locally in `UserDefaults` under the key `savedNotes`.
+- Notes and clipboard history are stored locally in `~/Library/Application Support/de.adcore.xNotes/tabs.json`. Versions before 1.1 used `UserDefaults` (key `savedNotes`); the data is migrated automatically on first launch.
+- Settings and text expansion rules are stored in `UserDefaults`.
+
+### Demo mode (development)
+Debug builds started with the launch argument `-DemoMode YES` use sample data instead of your own notes, clipboard history and text expansion rules (clipboard monitoring and the text expander are disabled). Useful for screenshots.
 
 ---
 
