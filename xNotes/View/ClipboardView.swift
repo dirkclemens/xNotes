@@ -257,12 +257,14 @@ struct ClipboardView: View {
         return nil
     }
 
-    private var tooltipDateFormatter: DateFormatter {
+    private var tooltipDateFormatter: DateFormatter { Self.tooltipDateFormatter }
+
+    private static let tooltipDateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateStyle = .medium
         f.timeStyle = .medium
         return f
-    }
+    }()
 
     private func sourceAppIcon(for item: ClipboardItem) -> NSImage {
         if let bundleId = item.sourceAppBundleId,
