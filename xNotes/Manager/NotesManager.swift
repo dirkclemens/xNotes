@@ -978,18 +978,47 @@ class NotesManager: ObservableObject {
     func searchResults(for query: String) -> [SearchResult] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
-        let needle = trimmed.lowercased()
+        let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
         var results: [SearchResult] = []
 
-        for (index, tab) in tabs.enumerated() where tab.kind == .note {
-            let title = resolvedTitle(for: tab, index: index)
-            let haystackTitle = title.lowercased()
-            let haystackContent = tab.content.lowercased()
-            guard haystackTitle.contains(needle) || haystackContent.contains(needle) else { continue }
-            let snippet = makeSnippet(content: tab.content, needle: trimmed)
-            results.append(SearchResult(tabId: tab.id, tabTitle: title, snippet: snippet))
+        for (index, tab) in tabs.enumerated() {
+            switch tab.kind {
+            case .note:
+                let title = resolvedTitle(for: tab, index: index)
+                let ranges = matchRanges(of: trimmed, in: tab.content, options: options)
+                if ranges.isEmpty {
+                    if title.range(of: trimmed, options: options) != nil {
+                        results.append(SearchResult(tabId: tab.id, tabTitle: title, clipboardItemId: nil, range: nil))
+                    }
+                } else {
+                    for range in ranges {
+                        results.append(SearchResult(tabId: tab.id, tabTitle: title, clipboardItemId: nil, range: range))
+                    }
+                }
+            case .clipboard:
+                let title = displayTitle(for: tab)
+                for item in tab.clipboardItems where item.text.range(of: trimmed, options: options) != nil {
+                    results.append(SearchResult(tabId: tab.id, tabTitle: title, clipboardItemId: item.id, range: nil))
+                }
+            case .expansions:
+                continue
+            }
         }
         return results
+    }
+
+    private func matchRanges(of needle: String, in content: String, options: String.CompareOptions) -> [NSRange] {
+        let nsContent = content as NSString
+        var ranges: [NSRange] = []
+        var searchRange = NSRange(location: 0, length: nsContent.length)
+        while searchRange.length > 0 {
+            let found = nsContent.range(of: needle, options: options, range: searchRange)
+            guard found.location != NSNotFound, found.length > 0 else { break }
+            ranges.append(found)
+            let nextLocation = found.location + found.length
+            searchRange = NSRange(location: nextLocation, length: nsContent.length - nextLocation)
+        }
+        return ranges
     }
 
     private func ensureAccessibilityPermission() -> Bool {
@@ -1049,18 +1078,6 @@ class NotesManager: ObservableObject {
             }
         }
         return "Tab \(index + 1)"
-    }
-
-    private func makeSnippet(content: String, needle: String) -> String {
-        let nsContent = content as NSString
-        let range = nsContent.range(of: needle, options: .caseInsensitive)
-        guard range.location != NSNotFound else {
-            return content.prefix(120).description
-        }
-        let start = max(0, range.location - 30)
-        let end = min(nsContent.length, range.location + range.length + 60)
-        return nsContent.substring(with: NSRange(location: start, length: end - start))
-            .replacingOccurrences(of: "\n", with: " ")
     }
 
     private func currentClipboardSourceApp() -> NSRunningApplication? {
