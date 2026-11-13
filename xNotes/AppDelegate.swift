@@ -62,7 +62,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyManager?.start()
 
         AppDelegate.sharedTextExpansionEngine = TextExpansionEngine(store: textExpansionStore)
-        AppDelegate.sharedTextExpansionEngine?.start()
+        if !DemoMode.isEnabled {
+            AppDelegate.sharedTextExpansionEngine?.start()
+        }
 
         NotificationCenter.default.addObserver(
             self,

@@ -39,6 +39,12 @@ final class TextExpansionStore: ObservableObject {
     }
 
     private func load() {
+        #if DEBUG
+        if DemoMode.isEnabled {
+            rules = DemoData.textExpansionRules
+            return
+        }
+        #endif
         guard let data = UserDefaults.standard.data(forKey: storageKey),
               let decoded = try? JSONDecoder().decode([TextExpansionRule].self, from: data) else {
             return
@@ -47,6 +53,7 @@ final class TextExpansionStore: ObservableObject {
     }
 
     private func save() {
+        guard !DemoMode.isEnabled else { return }
         guard let data = try? JSONEncoder().encode(rules) else { return }
         UserDefaults.standard.set(data, forKey: storageKey)
     }
