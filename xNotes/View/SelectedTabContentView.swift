@@ -27,7 +27,7 @@ struct SelectedTabContentView: View {
                 ),
                 autoFocus: autoFocusEditor,
                 highlight: searchHighlight.flatMap { result in
-                    result.range.map { MDEditorHighlight(id: result.id, range: $0) }
+                    result.range.map { MarkdownEditorHighlight(id: result.id, range: $0) }
                 }
             )
         }
