@@ -2,7 +2,9 @@
 
 xNotes is a lightweight macOS menu bar notes app that keeps notes in colour-coded tabs, tracks a full clipboard history alongside them, and lets you cut repetitive typing with a built-in text expander. Define a short trigger, hint it with a snippet of any length — a signature, a standard reply, an address, a code block — and xNotes replaces the trigger with the full snippet the moment you type it, in whichever app you're working in.
 
-![screenshot](./screenshot.png)
+<p align="center">
+  <img src="./screenshot.png" width="600" alt="xNotes with colour-coded tabs and Markdown highlighting">
+</p>
 
 ## Features
 - Menu bar popover for fast access
@@ -50,12 +52,20 @@ Alternatively, right-click the app in Finder and choose "Open".
 - Define short triggers that expand into longer snippets
 - Manage rules in the Text Expansion view
 
+<p align="center">
+  <img src="./snippets.png" width="600" alt="Text expansion rules">
+</p>
+
 ### Clipboard
 - New clipboard entries are captured automatically (text only)
 - Duplicates are deduplicated; newest moves to top
 - Pinned items stay at the top and are not removable
 - Right-click an item for transformations and actions
 - In the clipboard-only panel, type to filter; Return pastes the first match into the last app
+
+<p align="center">
+  <img src="./clipboard.png" width="600" alt="Clipboard history with pinned items and the transform context menu">
+</p>
 
 ### Clipboard Transform Plugins
 Every `.js` file in `~/Library/Application Support/de.adcore.xNotes/Transforms/` adds an entry to the clipboard context menu. Changes are picked up automatically. A README and three example plugins are created there on first launch (context menu ▸ Plugins ▸ Open Plugins Folder).
