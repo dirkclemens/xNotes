@@ -59,6 +59,7 @@ struct MarkdownEditor: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let coordinator = context.coordinator
         let containerView = NSView()
+        containerView.clipsToBounds = true
 
         let lineNumberView = LineNumberView(separatorWidth: separatorWidth)
         lineNumberView.translatesAutoresizingMaskIntoConstraints = false
@@ -363,16 +364,21 @@ final class LineNumberView: NSView {
     init(separatorWidth: CGFloat = 1.0) {
         self.separatorWidth = separatorWidth
         super.init(frame: .zero)
+        // Seit macOS 14 clippen Views nicht mehr automatisch – ohne das würden Hintergrund
+        // und Zeilennummern über angrenzende Views (z. B. die Tab-Leiste) gezeichnet.
+        clipsToBounds = true
     }
 
     override init(frame frameRect: NSRect) {
         self.separatorWidth = 1.0
         super.init(frame: frameRect)
+        clipsToBounds = true
     }
 
     required init?(coder: NSCoder) {
         self.separatorWidth = 1.0
         super.init(coder: coder)
+        clipsToBounds = true
     }
 
     // Oben links als Ursprung – entspricht dem Koordinatensystem der Text View.
@@ -380,7 +386,8 @@ final class LineNumberView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         backgroundColor.setFill()
-        dirtyRect.fill()
+        // dirtyRect kann über die eigenen Bounds hinausreichen.
+        dirtyRect.intersection(bounds).fill()
 
         NSColor.separatorColor.setStroke()
         let separatorPath = NSBezierPath()
