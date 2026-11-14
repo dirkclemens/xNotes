@@ -5,7 +5,7 @@
 - `xNotes/Manager/` holds app-level services and state (e.g., `NotesManager`).
 - `xNotes/Model/` contains data models and persistence payloads.
 - `xNotes/View/` contains SwiftUI views.
-- `xNotes/MDEditorLite/` provides the custom editor implementation.
+- `xNotes/MarkdownEditor/` provides the Markdown editor (editor component taken from github.com/dirkclemens/MarkdownEditor, without preview; xNotes additions in `MarkdownEditorTheme+xNotes.swift`).
 - `xNotes/Transforms/` contains clipboard text transforms: built-ins, the JavaScript plugin loader, and `TransformRegistry`.
 - `xNotes/Assets.xcassets/` stores app assets.
 

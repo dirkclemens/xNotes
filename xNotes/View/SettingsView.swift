@@ -15,6 +15,8 @@ struct SettingsView: View {
     @AppStorage("keepWindowOpen") private var keepWindowOpen = false
     @AppStorage("editorFontName") private var editorFontName: String = "SF Mono"
     @AppStorage("editorFontSize") private var editorFontSize: Double = 14
+    @AppStorage("editorTheme") private var editorThemeName: String = MarkdownEditorTheme.systemThemeName
+    @AppStorage("editorShowsLineNumbers") private var editorShowsLineNumbers: Bool = false
     @AppStorage("clipboardMaxItems") private var clipboardMaxItems: Int = 200
     @AppStorage("clipboardLineLimit") private var clipboardLineLimit: Int = 4
     @AppStorage("pasteAsPlainText") private var pasteAsPlainText: Bool = false
@@ -62,6 +64,15 @@ struct SettingsView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+
+                Picker("Theme", selection: $editorThemeName) {
+                    ForEach(MarkdownEditorTheme.availableThemeNames, id: \.self) { name in
+                        Text(name).tag(name)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Toggle("Show line numbers", isOn: $editorShowsLineNumbers)
             }
 
             Section("Tabs") {
