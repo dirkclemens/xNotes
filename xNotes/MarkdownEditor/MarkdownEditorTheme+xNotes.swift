@@ -7,6 +7,7 @@
 //
 
 import AppKit
+import MarkdownEditorKit
 
 extension MarkdownEditorTheme {
     /// Default theme: the MarkdownEditor light theme on the regular window background,
@@ -16,19 +17,7 @@ extension MarkdownEditorTheme {
     /// Theme names in the order they appear in the settings.
     static let availableThemeNames: [String] = [systemThemeName] + catalog.keys.sorted()
 
-    private static let catalog: [String: MarkdownEditorTheme] = [
-        "Dark": darkTheme,
-        "Dracula": draculaTheme,
-        "Gruvbox Dark": gruvboxDarkTheme,
-        "Light": lightTheme,
-        "Monokai": monokaiDarkTheme,
-        "Nord": nordTheme,
-        "One Dark": oneDarkTheme,
-        "Pastel": pastelTheme,
-        "Solarized Dark": solarizedDarkTheme,
-        "Solarized Light": solarizedLightTheme,
-        "Tomorrow Night": tomorrowNightTheme
-    ]
+    private static let catalog = builtInThemes
 
     private static let systemTheme = lightTheme.with(backgroundColor: .windowBackgroundColor)
 

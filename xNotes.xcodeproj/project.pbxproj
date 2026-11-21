@@ -23,6 +23,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AF3F5829E43F544892DA9804 /* MarkdownEditorKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +66,7 @@
 			);
 			name = xNotes;
 			packageProductDependencies = (
+				C8269556143988B8110988FA /* MarkdownEditorKit */,
 			);
 			productName = xNotes;
 			productReference = 439B4E952F18BF8C005AF287 /* xNotes.app */;
@@ -95,6 +97,7 @@
 			mainGroup = 439B4E8C2F18BF8C005AF287;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				E27F4D39B3EE510320F2BD64 /* XCRemoteSwiftPackageReference "MarkdownEditorKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 439B4E962F18BF8C005AF287 /* Products */;
@@ -347,6 +350,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E27F4D39B3EE510320F2BD64 /* XCRemoteSwiftPackageReference "MarkdownEditorKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/dirkclemens/MarkdownEditorKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C8269556143988B8110988FA /* MarkdownEditorKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E27F4D39B3EE510320F2BD64 /* XCRemoteSwiftPackageReference "MarkdownEditorKit" */;
+			productName = MarkdownEditorKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 439B4E8D2F18BF8C005AF287 /* Project object */;
 }

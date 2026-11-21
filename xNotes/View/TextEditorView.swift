@@ -5,6 +5,7 @@
 
 import SwiftUI
 import AppKit
+import MarkdownEditorKit
 
 struct TextEditorView: View {
     @Binding var content: String
@@ -22,7 +23,7 @@ struct TextEditorView: View {
             text: $content,
             font: editorFont,
             theme: editorTheme,
-            showsLineNumbers: showsLineNumbers,
+            options: EditorOptions(showsLineNumbers: showsLineNumbers, linksAreClickable: true),
             highlight: highlight,
             autoFocus: autoFocus
         )

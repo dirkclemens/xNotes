@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import MarkdownEditorKit
 import AppKit
 import UniformTypeIdentifiers
 
