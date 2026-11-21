@@ -5,7 +5,6 @@
 import SwiftUI
 import AppKit
 import ServiceManagement
-import UniformTypeIdentifiers
 import Combine
 
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -18,7 +17,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var localMouseMonitor: Any?
     private let panelModeController = PanelModeController()
     
-    private var notesManager = NotesManager()
+    /// Shared with the Settings scene (export & backup).
+    private(set) var notesManager = NotesManager()
     private var textExpansionStore = TextExpansionStore.shared
     private var windowLevelStateSettings = WindowLevelStateSettings()
     private var keepWindowOpenCancellable: AnyCancellable? // <-- Fix: retain Combine subscription
@@ -254,30 +254,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showMenu() {
         let menu = NSMenu()
-        
-        let exportQuickItem = NSMenuItem(title: "Export", action: #selector(exportAllNotesQuick), keyEquivalent: "x")
-        exportQuickItem.target = self
-        menu.addItem(exportQuickItem)
-        
-        let exportItem = NSMenuItem(title: "Export As...", action: #selector(exportAllNotes), keyEquivalent: "e")
-        exportItem.target = self
-        menu.addItem(exportItem)
 
-        menu.addItem(.separator())
-
-        let exportBackupItem = NSMenuItem(title: "Export Backup...", action: #selector(exportBackup), keyEquivalent: "b")
-        exportBackupItem.target = self
-        menu.addItem(exportBackupItem)
-
-        let importBackupItem = NSMenuItem(title: "Import Backup...", action: #selector(importBackup), keyEquivalent: "i")
-        importBackupItem.target = self
-        menu.addItem(importBackupItem)
-
-        // Clipboard: latest 10 entries
+        // Clipboard: latest entries (count set in Settings ▸ Clipboard; 0 hides the section).
+        // Export and backup actions live in Settings ▸ Export & Backup.
         if let clipboardTab = notesManager.tabs.first(where: { $0.kind == .clipboard }) {
-            let latestItems = Array(clipboardTab.clipboardItems.prefix(10))
+            let latestItems = Array(clipboardTab.clipboardItems.prefix(Self.statusMenuClipboardCount()))
             if !latestItems.isEmpty {
-                menu.addItem(.separator())
                 let clipboardHeader = NSMenuItem(title: "Clipboard", action: nil, keyEquivalent: "")
                 clipboardHeader.isEnabled = false
                 menu.addItem(clipboardHeader)
@@ -311,10 +293,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
                     menu.addItem(menuItem)
                 }
+                menu.addItem(.separator())
             }
         }
-
-        menu.addItem(.separator())
 
         let quitItem = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
@@ -341,6 +322,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         showPanel(relativeTo: button)
     }
 
+    /// UserDefaults key / default for the number of clipboard entries in the status menu.
+    static let statusMenuClipboardCountKey = "statusMenuClipboardCount"
+    static let statusMenuClipboardCountDefault = 10
+
+    private static func statusMenuClipboardCount() -> Int {
+        let stored = UserDefaults.standard.object(forKey: statusMenuClipboardCountKey) as? Int
+        return max(0, stored ?? statusMenuClipboardCountDefault)
+    }
+
     @objc private func quitApp() {
         NSApp.terminate(nil)
     }
@@ -348,106 +338,5 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func pasteClipboardMenuItem(_ sender: NSMenuItem) {
         guard let text = sender.representedObject as? String, !text.isEmpty else { return }
         _ = notesManager.pasteTextIntoLastApp(text)
-    }
-  
-    @objc private func exportAllNotes() {
-        // Ensure UI work happens on main queue
-        self.closePanel()
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-            let panel = NSSavePanel()
-            panel.title = "Export Notes"
-            panel.allowedContentTypes = [UTType.plainText]
-            panel.nameFieldStringValue = "xNotes-Export.txt"
-            panel.canCreateDirectories = true
-            panel.begin { [weak self] result in
-              guard result == .OK, let url = panel.url else { return }
-              self?.writeExportFile(to: url)
-            }
-        }
-    }
-
-    @objc private func exportAllNotesQuick() {
-        let fm = FileManager.default
-        let docs = fm.urls(for: .desktopDirectory, in: .userDomainMask).first!
-        let fileURL = docs.appendingPathComponent("xNotes-Export.txt")
-        writeExportFile(to: fileURL)
-//        let alert = NSAlert()
-//        alert.messageText = "Export abgeschlossen"
-//        alert.informativeText = "Die Datei wurde gespeichert unter:\n\(fileURL.path)"
-//        alert.runModal()
-    }
-
-    @objc private func exportBackup() {
-        let panel = NSSavePanel()
-        panel.title = "Export Backup"
-        panel.allowedContentTypes = [UTType.json]
-        panel.nameFieldStringValue = "xNotes-Backup.json"
-        panel.canCreateDirectories = true
-        panel.begin { [weak self] result in
-            guard result == .OK, let url = panel.url, let self else { return }
-            do {
-                let data = try self.notesManager.exportBackupData()
-                try data.write(to: url, options: .atomic)
-            } catch {
-                self.showErrorAlert(title: "Backup Export Failed", error: error)
-            }
-        }
-    }
-
-    @objc private func importBackup() {
-        let panel = NSOpenPanel()
-        panel.title = "Import Backup"
-        panel.allowedContentTypes = [UTType.json]
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.begin { [weak self] result in
-            guard result == .OK, let url = panel.url, let self else { return }
-            do {
-                let data = try Data(contentsOf: url)
-                try self.notesManager.importBackupData(data)
-            } catch {
-                self.showErrorAlert(title: "Backup Import Failed", error: error)
-            }
-        }
-    }
-
-    private struct ExportNote {
-        let title: String
-        let content: String
-    }
-
-    private func exportSnapshot() -> [ExportNote] {
-        let notes = notesManager.tabs
-        return notes.enumerated().map { index, tab in
-            let title = tab.title ?? "Tab \(index + 1)"
-            return ExportNote(title: title, content: tab.content)
-        }
-    }
-
-    private func writeExportFile(to url: URL) {
-        let snapshot = exportSnapshot()
-        DispatchQueue.global(qos: .userInitiated).async {
-            var exportText = ""
-            for note in snapshot {
-                exportText += "===== \(note.title) =====\n"
-                exportText += note.content + "\n\n"
-            }
-            do {
-                try exportText.write(to: url, atomically: true, encoding: .utf8)
-            } catch {
-                DispatchQueue.main.async {
-                    self.showErrorAlert(title: "Export Failed", error: error)
-                }
-            }
-        }
-    }
-
-    private func showErrorAlert(title: String, error: Error) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = error.localizedDescription
-        alert.runModal()
     }
 }

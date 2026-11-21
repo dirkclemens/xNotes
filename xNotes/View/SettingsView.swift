@@ -11,7 +11,10 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @StateObject private var loginItemManager = LoginItemManager()
     @EnvironmentObject var textExpansionStore: TextExpansionStore
-    
+    @EnvironmentObject var notesManager: NotesManager
+    /// Result of the last export/backup action, shown below the buttons.
+    @State private var exportOutcome: NotesExporter.Outcome?
+
     @AppStorage("showDockIcon") private var showDockIcon = false
     @AppStorage("keepWindowOpen") private var keepWindowOpen = false
     @AppStorage("editorFontName") private var editorFontName: String = "SF Mono"
@@ -30,6 +33,7 @@ struct SettingsView: View {
     @AppStorage("textExpansionEnabled") private var textExpansionEnabled: Bool = false
     @AppStorage("tabAutoDeleteDays") private var tabAutoDeleteDays: Int = 7
     @AppStorage("tabRainbowBorder") private var tabRainbowBorder: Bool = true
+    @AppStorage(AppDelegate.statusMenuClipboardCountKey) private var statusMenuClipboardCount: Int = AppDelegate.statusMenuClipboardCountDefault
 
     var body: some View {
         Form {
@@ -114,6 +118,16 @@ struct SettingsView: View {
                     }
                 }
 
+                Stepper(value: $statusMenuClipboardCount, in: 0...30, step: 1) {
+                    HStack {
+                        Text("Entries in Menu Bar Menu")
+                        Spacer()
+                        Text(statusMenuClipboardCount == 0 ? "Off" : "\(statusMenuClipboardCount)")
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .help("Latest clipboard entries shown when you right-click the menu bar icon")
+
                 Toggle("Paste as Plain Text", isOn: $pasteAsPlainText)
                 Toggle("Normalize Line Endings to LF", isOn: $pasteNormalizeLF)
                     .disabled(!pasteAsPlainText)
@@ -153,6 +167,44 @@ struct SettingsView: View {
                 Text("Expansions are stored locally and applied system-wide.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            Section("Export & Backup") {
+                LabeledContent("Notes as Text") {
+                    HStack {
+                        Button("Export to Desktop") {
+                            NotesExporter.exportNotesToDesktop(from: notesManager) { exportOutcome = $0 }
+                        }
+                        .help("Saves ~/Desktop/xNotes-Export.txt, replacing an earlier export")
+                        Button("Export As…") {
+                            NotesExporter.exportNotesAs(from: notesManager) { exportOutcome = $0 }
+                        }
+                    }
+                }
+                LabeledContent("Backup (JSON)") {
+                    HStack {
+                        Button("Export Backup…") {
+                            NotesExporter.exportBackup(from: notesManager) { exportOutcome = $0 }
+                        }
+                        Button("Import Backup…") {
+                            NotesExporter.importBackup(into: notesManager) { exportOutcome = $0 }
+                        }
+                    }
+                }
+                switch exportOutcome {
+                case .success(let message):
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                case .failure(let message):
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                case nil:
+                    Text("A backup contains all tabs and the clipboard history. Importing replaces the current tabs.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)

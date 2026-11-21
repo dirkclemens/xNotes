@@ -95,9 +95,11 @@ Plugins run in an isolated JavaScript context without file or network access and
 - `⌘G` / `Return` next result
 - `⇧⌘G` previous result
 - `Esc` close search, then close the panel
-- Right‑click the menu bar icon for export/backup/quit
+- Right‑click the menu bar icon for the latest clipboard entries and Quit (number of entries: Settings ▸ Clipboard)
 
-### Backup
+### Export & Backup
+In Settings ▸ Export & Backup:
+- Export all notes as text (to the Desktop or a location of your choice)
 - Export full app state (tabs + clipboard) as JSON
 - Import JSON backup to restore
 

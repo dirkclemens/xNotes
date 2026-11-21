@@ -19,6 +19,7 @@ struct xNotesApp: App {
         Settings {
             SettingsView()
                 .environmentObject(TextExpansionStore.shared)
+                .environmentObject(appDelegate.notesManager)
         }
     }
 }
