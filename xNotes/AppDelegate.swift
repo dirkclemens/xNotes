@@ -348,7 +348,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Ensure UI work happens on main queue
         self.closePanel()
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self] in
             let panel = NSSavePanel()
             panel.title = "Export Notes"
             panel.allowedContentTypes = [UTType.plainText]

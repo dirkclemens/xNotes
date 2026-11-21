@@ -26,7 +26,10 @@ final class HotkeyManager {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.refreshRegistration()
+            // The observer is delivered on the main queue, so we're on the main actor here.
+            MainActor.assumeIsolated {
+                self?.refreshRegistration()
+            }
         }
     }
 
