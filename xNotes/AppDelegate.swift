@@ -320,6 +320,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         quitItem.target = self
         menu.addItem(quitItem)
 
+        // A menu popped up in the status bar button inherits the menu bar's
+        // (often dark) appearance; use the app's system appearance instead.
+        menu.appearance = NSApp.effectiveAppearance
+
         if let button = statusItem?.button {
             menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 2), in: button)
         }
