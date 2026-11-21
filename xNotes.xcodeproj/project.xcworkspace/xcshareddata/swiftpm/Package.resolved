@@ -1,0 +1,15 @@
+{
+  "originHash" : "dcf9e0fc7e15cde1aeb9e25f0349cc57df86f540bef22e360401786f7057d2cb",
+  "pins" : [
+    {
+      "identity" : "markdowneditorkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/dirkclemens/MarkdownEditorKit",
+      "state" : {
+        "revision" : "468cf6ef18d62cf2bb79c4654a26cd8622ab45c0",
+        "version" : "1.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}

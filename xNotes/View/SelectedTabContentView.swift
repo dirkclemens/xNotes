@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import MarkdownEditorKit
 
 struct SelectedTabContentView: View {
     @ObservedObject var tab: NoteTab

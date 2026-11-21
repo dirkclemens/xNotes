@@ -115,7 +115,7 @@ Debug builds started with the launch argument `-DemoMode YES` use sample data in
 
 ## Third-Party Code
 
-The Markdown editor (`xNotes/MarkdownEditor/`) is taken from [MarkdownEditor](https://github.com/dirkclemens/MarkdownEditor) (editor component only, without the preview), MIT licensed. xNotes-specific changes: configurable font, optional line numbers, search highlighting, focus handling and clickable links.
+The Markdown editor comes from the Swift package [MarkdownEditorKit](https://github.com/dirkclemens/MarkdownEditorKit), MIT licensed, which is shared with [MarkdownEditor](https://github.com/dirkclemens/MarkdownEditor). Xcode resolves it automatically when building.
 
 ---
 
