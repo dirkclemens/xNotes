@@ -29,6 +29,7 @@ struct SettingsView: View {
     @AppStorage("hotkeyMode") private var hotkeyMode: String = PanelMode.full.rawValue
     @AppStorage("textExpansionEnabled") private var textExpansionEnabled: Bool = false
     @AppStorage("tabAutoDeleteDays") private var tabAutoDeleteDays: Int = 7
+    @AppStorage("tabRainbowBorder") private var tabRainbowBorder: Bool = true
 
     var body: some View {
         Form {
@@ -77,6 +78,10 @@ struct SettingsView: View {
             }
 
             Section("Tabs") {
+                Toggle("Rainbow border around tabs", isOn: $tabRainbowBorder)
+                Text("Locked tabs get a rainbow border, unlocked ones a gray one that turns as auto-delete approaches.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Stepper(value: $tabAutoDeleteDays, in: 1...365, step: 1) {
                     HStack {
                         Text("Auto-delete Unlocked Tabs")

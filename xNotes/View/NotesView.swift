@@ -16,6 +16,8 @@ struct NotesView: View {
     @State private var searchResults: [SearchResult] = []
     @State private var searchFocusRequest = 0
     @State private var activeSearchResult: SearchResult?
+    /// Tab waiting for the "Close this tab?" confirmation.
+    @State private var pendingCloseTab: NoteTab?
 
     private var keepWindowOpen: Binding<Bool> { $windowSettings.keepWindowOpen }
 
@@ -29,36 +31,67 @@ struct NotesView: View {
         ZStack {
             if page == .main {
                 
-                VStack(spacing: 0) {
-                    TabBarView()
-                    
-                    if isSearchVisible {
-                        SearchBarView(
-                            query: $searchQuery,
-                            resultCount: searchResults.count,
-                            currentIndex: currentResultIndex,
-                            currentTabTitle: activeSearchResult?.tabTitle,
-                            focusRequest: searchFocusRequest,
-                            onPrevious: { stepSearch(previous: true) },
-                            onNext: { stepSearch(previous: false) },
-                            onClose: closeSearch
-                        )
+                HStack(spacing: 0) {
+                    SidebarView(
+                        keepWindowOpen: keepWindowOpen,
+                        onOpenSettings: goToNextPage,
+                        onRequestClose: { pendingCloseTab = $0 }
+                    )
+
+                    Divider()
+
+                    VStack(spacing: 0) {
+                        if let tab = selectedTab {
+                            TabContextBar(
+                                tab: tab,
+                                onSearch: openSearch,
+                                onRequestClose: { pendingCloseTab = $0 }
+                            )
+                        }
+
+                        if isSearchVisible {
+                            SearchBarView(
+                                query: $searchQuery,
+                                resultCount: searchResults.count,
+                                currentIndex: currentResultIndex,
+                                currentTabTitle: activeSearchResult?.tabTitle,
+                                focusRequest: searchFocusRequest,
+                                onPrevious: { stepSearch(previous: true) },
+                                onNext: { stepSearch(previous: false) },
+                                onClose: closeSearch
+                            )
+                        }
+
+                        Divider()
+
+                        if let tab = selectedTab {
+                            SelectedTabContentView(
+                                tab: tab,
+                                autoFocusEditor: !isSearchVisible,
+                                searchHighlight: activeSearchResult?.tabId == tab.id ? activeSearchResult : nil
+                            )
+                            .id(tab.id)
+                        } else {
+                            Spacer()
+                        }
                     }
-                    
-                    Divider().frame(height: 1).background(.windowBackground)
-                    
-                    if let selectedId = notesManager.selectedTabId,
-                       let tab = notesManager.tabs.first(where: { $0.id == selectedId }) {
-                        SelectedTabContentView(
-                            tab: tab,
-                            autoFocusEditor: !isSearchVisible,
-                            searchHighlight: activeSearchResult?.tabId == tab.id ? activeSearchResult : nil
-                        )
-                        .id(tab.id)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .alert("Close this tab?", isPresented: Binding(
+                    get: { pendingCloseTab != nil },
+                    set: { if !$0 { pendingCloseTab = nil } }
+                )) {
+                    Button("Cancel", role: .cancel) {}
+                    Button("Close", role: .destructive) {
+                        if let pendingCloseTab {
+                            notesManager.removeTab(pendingCloseTab)
+                        }
+                        pendingCloseTab = nil
                     }
-                    
-                    Divider().frame(height: 1).background(.windowBackground)
-                    footerButtons.padding(12)
+                } message: {
+                    if let pendingCloseTab {
+                        Text("\"\(notesManager.displayTitle(for: pendingCloseTab))\" will be removed.")
+                    }
                 }
 
                 .transition(.move(edge: .top).combined(with: .opacity))
@@ -151,6 +184,11 @@ struct NotesView: View {
         .font(.caption)
     }
     
+    private var selectedTab: NoteTab? {
+        guard let selectedId = notesManager.selectedTabId else { return nil }
+        return notesManager.tabs.first(where: { $0.id == selectedId })
+    }
+
     private func goToPreviousPage() {
         guard let previous = Page(rawValue: page.rawValue - 1) else { return }
         withAnimation(.easeInOut(duration: 0.2)) {

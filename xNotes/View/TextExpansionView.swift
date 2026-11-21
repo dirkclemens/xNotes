@@ -48,14 +48,17 @@ struct TextExpansionView: View {
                             pendingDeleteRule = rule
                         }) {
                             Image(systemName: "trash")
+                                .font(.system(size: 11))
                                 .foregroundColor(.secondary)
-                                .padding(6)
-                                .background(.windowBackground)
-                                .clipShape(Circle())
-                                .shadow(color: Color.black.opacity(0.12), radius: 2, x: 0, y: 1)
+                                .frame(width: 20, height: 18)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .help("Delete")
                     }
+                    .controlSize(.small)
+                    .font(.system(size: 12))
+                    .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
                     .contextMenu {
                         Button("Delete") {
                             pendingDeleteRule = rule
@@ -67,6 +70,7 @@ struct TextExpansionView: View {
                     pendingDeleteRule = store.rules[index]
                 }
             }
+            .environment(\.defaultMinListRowHeight, 20)
 
             Divider()
 

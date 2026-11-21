@@ -81,8 +81,9 @@ struct ShortcutTabMonitor: NSViewRepresentable {
                 if event.modifierFlags.contains(.command) {
                     guard digit >= 1 && digit <= 9 else { return event }
                     let index = digit - 1
-                    if index < self.notesManager.tabs.count {
-                        self.notesManager.selectedTabId = self.notesManager.tabs[index].id
+                    let orderedTabs = self.notesManager.sidebarOrderedTabs
+                    if index < orderedTabs.count {
+                        self.notesManager.selectedTabId = orderedTabs[index].id
                         return nil
                     }
                 }

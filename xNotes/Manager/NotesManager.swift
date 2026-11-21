@@ -61,6 +61,14 @@ class NotesManager: ObservableObject {
         guard index >= 0, index < tabs.count else { return }
         selectedTabId = tabs[index].id
     }
+
+    /// Tabs in the order the sidebar shows them: clipboard and text expansions first, then the notes.
+    /// ⌘1…⌘9 follow this order so the shortcuts match what the user sees.
+    var sidebarOrderedTabs: [NoteTab] {
+        tabs.filter { $0.kind == .clipboard }
+            + tabs.filter { $0.kind == .expansions }
+            + tabs.filter { $0.kind == .note }
+    }
     
     func removeTab(_ tab: NoteTab) {
         guard tab.kind == .note else { return }

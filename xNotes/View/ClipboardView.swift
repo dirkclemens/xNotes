@@ -47,23 +47,29 @@ struct ClipboardView: View {
 
     private var clipboardList: some View {
         List(items, selection: $selection) { item in
-            HStack(spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Image(nsImage: sourceAppIcon(for: item))
                     .resizable()
-                    .frame(width: 16, height: 16)
+                    .frame(width: 14, height: 14)
+                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
                 if let slot = item.pinnedSlot {
                     Text("\(slot)")
-                        .font(.system(size: 10, weight: .bold))
-                        .frame(width: 16, height: 16)
+                        .font(.system(size: 9, weight: .bold))
+                        .frame(width: 14, height: 14)
                         .foregroundColor(.white)
                         .background(Circle().fill(Color.accentColor))
+                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
                 }
-                Text(item.text).lineLimit(clipboardLineLimit)
+                Text(item.text)
+                    .font(.system(size: 12))
+                    .lineLimit(clipboardLineLimit)
             }
             .help(tooltipText(for: item))
             .contentShape(Rectangle())
+            .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
         }
         .listStyle(.inset)
+        .environment(\.defaultMinListRowHeight, 18)
         .focusable(true)
         .sheet(item: $editItem) { item in
             EditClipboardItemView(item: item)
