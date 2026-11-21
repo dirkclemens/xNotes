@@ -18,8 +18,21 @@ enum NotesExporter {
     static var desktopExportURL: URL {
         let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser
-        return desktop.appendingPathComponent("xNotes-Export.txt")
+        return desktop.appendingPathComponent(datedFileName("xNotes-Export", extension: "txt"))
     }
+
+    /// File name with today's date appended, e.g. "xNotes-Backup-20261121.json".
+    static func datedFileName(_ baseName: String, extension ext: String, date: Date = Date()) -> String {
+        "\(baseName)-\(fileDateFormatter.string(from: date)).\(ext)"
+    }
+
+    private static let fileDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
+        f.dateFormat = "yyyyMMdd"
+        return f
+    }()
 
     // MARK: - Notes as text
 
@@ -32,7 +45,7 @@ enum NotesExporter {
         let panel = NSSavePanel()
         panel.title = "Export Notes"
         panel.allowedContentTypes = [UTType.plainText]
-        panel.nameFieldStringValue = "xNotes-Export.txt"
+        panel.nameFieldStringValue = datedFileName("xNotes-Export", extension: "txt")
         panel.canCreateDirectories = true
         panel.begin { result in
             guard result == .OK, let url = panel.url else { return }
@@ -46,7 +59,7 @@ enum NotesExporter {
         let panel = NSSavePanel()
         panel.title = "Export Backup"
         panel.allowedContentTypes = [UTType.json]
-        panel.nameFieldStringValue = "xNotes-Backup.json"
+        panel.nameFieldStringValue = datedFileName("xNotes-Backup", extension: "json")
         panel.canCreateDirectories = true
         panel.begin { result in
             guard result == .OK, let url = panel.url else { return }

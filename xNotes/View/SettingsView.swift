@@ -175,7 +175,7 @@ struct SettingsView: View {
                         Button("Export to Desktop") {
                             NotesExporter.exportNotesToDesktop(from: notesManager) { exportOutcome = $0 }
                         }
-                        .help("Saves ~/Desktop/xNotes-Export.txt, replacing an earlier export")
+                        .help("Saves ~/Desktop/xNotes-Export-YYYYMMDD.txt; a second export on the same day replaces it")
                         Button("Export As…") {
                             NotesExporter.exportNotesAs(from: notesManager) { exportOutcome = $0 }
                         }
@@ -223,7 +223,7 @@ struct SettingsView: View {
         let panel = NSSavePanel()
         panel.title = "Export Text Expansions"
         panel.allowedContentTypes = [UTType.json]
-        panel.nameFieldStringValue = "xNotes-TextExpansions.json"
+        panel.nameFieldStringValue = NotesExporter.datedFileName("xNotes-TextExpansions", extension: "json")
         panel.canCreateDirectories = true
         panel.begin { result in
             guard result == .OK, let url = panel.url else { return }
