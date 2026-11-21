@@ -320,13 +320,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         quitItem.target = self
         menu.addItem(quitItem)
 
-        // A menu popped up in the status bar button inherits the menu bar's
-        // (often dark) appearance; use the app's system appearance instead.
+        // Popping the menu up manually inside the status bar button makes it inherit
+        // the menu bar's (often dark) appearance. Attaching it to the status item for
+        // this one click lets macOS show it like its own status menus, which follow
+        // the system appearance.
+        guard let statusItem, let button = statusItem.button else { return }
         menu.appearance = NSApp.effectiveAppearance
-
-        if let button = statusItem?.button {
-            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 2), in: button)
-        }
+        statusItem.menu = menu
+        button.performClick(nil) // runs the menu's tracking loop and returns when it closes
+        statusItem.menu = nil    // restore left-click → panel, right-click → togglePopover
     }
 
     @objc private func handleClosePopover() {
