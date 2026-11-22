@@ -62,6 +62,7 @@ Alternatively, right-click the app in Finder and choose "Open".
 - Files copied in the Finder are kept as files: pasting puts the files back (e.g. into a Finder window or a mail), "Show in Finder" reveals them, "Append to Tab" adds their paths
 - Duplicates are deduplicated; newest moves to top
 - Pinned items stay at the top and are not removable
+- Links show their page title (when the source app provides one, e.g. Safari) and domain; the context menu opens them or pastes/copies them as Markdown links `[Title](url)`, and "Append to Tab" adds them as Markdown links. If the title is unknown, these actions load the page once to read it (falling back to the domain) and keep it
 - Hover over an item to see its source app, time, copied formats and size
 - Passwords marked as sensitive by password managers, and copies from Apple's Passwords app or Keychain Access, are not recorded (Settings ▸ Clipboard ▸ Save Sensitive Entries); entries marked as temporary or auto-generated are never recorded ([nspasteboard.org](http://nspasteboard.org) convention)
 - Right-click an item for transformations and actions

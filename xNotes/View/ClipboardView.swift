@@ -69,6 +69,12 @@ struct ClipboardView: View {
                         .frame(width: 14, height: 14)
                         .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
                 }
+                if item.isLink {
+                    Image(systemName: "link")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+                }
                 if item.canPasteRichText {
                     Image(systemName: "textformat")
                         .font(.system(size: 9))
@@ -81,7 +87,7 @@ struct ClipboardView: View {
                         .foregroundStyle(.orange)
                         .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
                 }
-                Text(item.text)
+                rowText(for: item)
                     .font(.system(size: 12))
                     .lineLimit(clipboardLineLimit)
             }
@@ -161,6 +167,26 @@ struct ClipboardView: View {
         }
         Button("Insert to Clipboard") {
             notesManager.writeClipboardItemToPasteboard(item, text: item.originalText)
+        }
+        if let url = item.linkURL {
+            Button("Open Link") {
+                NSWorkspace.shared.open(url)
+            }
+            Button("Paste as Markdown Link") {
+                Task {
+                    if let markdownLink = await notesManager.markdownLink(forItem: item.id) {
+                        _ = notesManager.pasteTextIntoLastApp(markdownLink)
+                    }
+                }
+            }
+            Button("Copy as Markdown Link") {
+                Task {
+                    if let markdownLink = await notesManager.markdownLink(forItem: item.id) {
+                        notesManager.copyTextToPasteboard(markdownLink)
+                        transformRegistry.show("Copied \(markdownLink)")
+                    }
+                }
+            }
         }
         if item.isFileItem {
             Button(item.filePaths.count == 1 ? "Show in Finder" : "Show Files in Finder") {
@@ -282,7 +308,11 @@ struct ClipboardView: View {
                 info.append("\(item.filePaths.count) \(item.filePaths.count == 1 ? "file" : "files")")
             }
         } else {
-            info.append("Size: \(sizeDescription(for: item.text))")
+            if let url = item.linkURL {
+                info.append(linkInfo(for: url, hasTitle: item.linkTitle != nil))
+            } else {
+                info.append("Size: \(sizeDescription(for: item.text))")
+            }
             if let formatting = formattingInfo(for: item) {
                 info.append(formatting)
             }
@@ -293,8 +323,34 @@ struct ClipboardView: View {
         if let slot = item.pinnedSlot {
             info.append("Pinned to slot \(slot) (⌥\(slot))")
         }
-        let content = item.isFileItem ? item.filePaths.joined(separator: "\n") : item.originalText
+        let content: String
+        if item.isFileItem {
+            content = item.filePaths.joined(separator: "\n")
+        } else if let title = item.linkTitle, let url = item.linkURL {
+            content = "\(title)\n\(url.absoluteString)"
+        } else {
+            content = item.originalText
+        }
         return "\(content)\n────────────────────\n\(info.joined(separator: "\n"))"
+    }
+
+    /// Link title (if any) followed by the domain in gray; plain text otherwise.
+    private func rowText(for item: ClipboardItem) -> Text {
+        guard let title = item.linkTitle, let host = item.linkURL?.host else {
+            return Text(item.text)
+        }
+        return Text(title) + Text("  \(host)").foregroundColor(.secondary)
+    }
+
+    private func linkInfo(for url: URL, hasTitle: Bool) -> String {
+        var parts = ["Link to \(url.host ?? url.absoluteString)"]
+        if url.scheme?.lowercased() == "http" {
+            parts.append("not encrypted (http)")
+        }
+        if !hasTitle {
+            parts.append("no title")
+        }
+        return parts.joined(separator: ", ")
     }
 
     /// Which formatted versions are kept and whether a paste uses them.
