@@ -6,6 +6,8 @@
 //
 //  Enable with the launch argument `-DemoMode YES`
 //  (Xcode: Product ▸ Scheme ▸ Edit Scheme… ▸ Run ▸ Arguments).
+//  Add `-DemoOpenTab <n>` to open the panel right after launch with the n-th tab of the
+//  sidebar selected (1 = clipboard), e.g. for scripted screenshots.
 //
 //  In demo mode:
 //  - tabs are loaded from built-in sample data and saved to `tabs-demo.json`
@@ -24,6 +26,17 @@ enum DemoMode {
         return UserDefaults.standard.bool(forKey: "DemoMode")
         #else
         return false
+        #endif
+    }
+
+    /// Sidebar position (1-based) of the tab to show in a panel opened at launch.
+    static var openTabAtLaunch: Int? {
+        #if DEBUG
+        guard isEnabled else { return nil }
+        let value = UserDefaults.standard.integer(forKey: "DemoOpenTab")
+        return value > 0 ? value : nil
+        #else
+        return nil
         #endif
     }
 }
@@ -85,19 +98,32 @@ enum DemoData {
     ]
 
     private static func clipboardItems(now: Date) -> [ClipboardItem] {
-        func item(_ text: String, minutesAgo: Double, app: String, bundleId: String, pinned: Int? = nil) -> ClipboardItem {
+        func item(
+            _ text: String,
+            minutesAgo: Double,
+            app: String,
+            bundleId: String,
+            pinned: Int? = nil,
+            linkTitle: String? = nil,
+            filePaths: [String] = []
+        ) -> ClipboardItem {
             ClipboardItem(
                 text: text,
                 date: now.addingTimeInterval(-minutesAgo * 60),
                 pinnedSlot: pinned,
                 sourceAppName: app,
-                sourceAppBundleId: bundleId
+                sourceAppBundleId: bundleId,
+                pasteboardTypes: linkTitle != nil ? ["public.utf8-plain-text", "public.url", "public.url-name"] : ["public.utf8-plain-text"],
+                filePaths: filePaths,
+                copiedLinkURL: linkTitle != nil ? text : nil,
+                copiedLinkTitle: linkTitle
             )
         }
         return [
             item("alex@example.com", minutesAgo: 600, app: "Mail", bundleId: "com.apple.mail", pinned: 1),
             item("Example Street 1, 12345 Sample City", minutesAgo: 900, app: "Contacts", bundleId: "com.apple.AddressBook", pinned: 2),
-            item("https://example.com/docs/getting-started?ref=xnotes", minutesAgo: 2, app: "Safari", bundleId: "com.apple.Safari"),
+            item("https://example.com/docs/getting-started?ref=xnotes", minutesAgo: 2, app: "Safari", bundleId: "com.apple.Safari", linkTitle: "Getting Started – Example Docs"),
+            item("Calculator.app", minutesAgo: 4, app: "Finder", bundleId: "com.apple.finder", filePaths: ["/System/Applications/Calculator.app"]),
             item("{\"name\":\"xNotes\",\"version\":\"1.1.0\",\"features\":[\"tabs\",\"clipboard\",\"plugins\"]}", minutesAgo: 5, app: "Terminal", bundleId: "com.apple.Terminal"),
             item("git log --oneline --graph --decorate -20", minutesAgo: 12, app: "Terminal", bundleId: "com.apple.Terminal"),
             item("let filtered = items.filter { $0.isPinned }", minutesAgo: 25, app: "Xcode", bundleId: "com.apple.dt.Xcode"),
