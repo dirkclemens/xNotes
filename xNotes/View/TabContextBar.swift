@@ -152,7 +152,7 @@ struct TabContextBar: View {
                 notesManager.updateLocked(for: tab.id, isLocked: !tab.isLocked)
             }
             Divider()
-            Button("Close Tab…") { onRequestClose(tab) }
+            Button("Delete Tab…") { onRequestClose(tab) }
                 .disabled(tab.isLocked || notesManager.tabs.count <= 1)
         } label: {
             Image(systemName: "ellipsis.circle")

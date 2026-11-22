@@ -56,7 +56,7 @@ struct SidebarTile: View {
         .contextMenu {
             Button(tab.isLocked ? "Unlock Tab" : "Lock Tab", action: onToggleLock)
             Divider()
-            Button("Close Tab…") { onClose?() }
+            Button("Delete Tab…") { onClose?() }
                 .disabled(onClose == nil)
         }
     }

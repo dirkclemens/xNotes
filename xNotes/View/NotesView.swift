@@ -16,7 +16,7 @@ struct NotesView: View {
     @State private var searchResults: [SearchResult] = []
     @State private var searchFocusRequest = 0
     @State private var activeSearchResult: SearchResult?
-    /// Tab waiting for the "Close this tab?" confirmation.
+    /// Tab waiting for the "Delete this tab?" confirmation.
     @State private var pendingCloseTab: NoteTab?
 
     private var keepWindowOpen: Binding<Bool> { $windowSettings.keepWindowOpen }
@@ -77,12 +77,12 @@ struct NotesView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .alert("Close this tab?", isPresented: Binding(
+                .alert("Delete this tab?", isPresented: Binding(
                     get: { pendingCloseTab != nil },
                     set: { if !$0 { pendingCloseTab = nil } }
                 )) {
                     Button("Cancel", role: .cancel) {}
-                    Button("Close", role: .destructive) {
+                    Button("Delete", role: .destructive) {
                         if let pendingCloseTab {
                             notesManager.removeTab(pendingCloseTab)
                         }
@@ -90,7 +90,7 @@ struct NotesView: View {
                     }
                 } message: {
                     if let pendingCloseTab {
-                        Text("\"\(notesManager.displayTitle(for: pendingCloseTab))\" will be removed.")
+                        Text("\"\(notesManager.displayTitle(for: pendingCloseTab))\" and its content will be deleted permanently. This cannot be undone.")
                     }
                 }
 
