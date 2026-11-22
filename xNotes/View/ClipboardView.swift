@@ -60,6 +60,12 @@ struct ClipboardView: View {
                         .background(Circle().fill(Color.accentColor))
                         .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
                 }
+                if item.isSensitive {
+                    Image(systemName: "key.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.orange)
+                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+                }
                 Text(item.text)
                     .font(.system(size: 12))
                     .lineLimit(clipboardLineLimit)
@@ -214,8 +220,43 @@ struct ClipboardView: View {
     }
 
     private func tooltipText(for item: ClipboardItem) -> String {
-        let source = item.sourceAppName ?? "Unknown"
-        return "\(item.originalText)\n────────────────────\nSource: \(source)\nDate: \(tooltipDateFormatter.string(from: item.date))"
+        var info: [String] = []
+        if item.isMarkedConcealed {
+            info.append("⚠︎ Sensitive: marked as a password by the source app")
+        } else if item.isFromPasswordApp {
+            info.append("⚠︎ Sensitive: copied from a password app")
+        }
+        info.append("Source: \(item.sourceAppName ?? "Unknown")")
+        if let bundleId = item.sourceAppBundleId {
+            info.append("App ID: \(bundleId)")
+        }
+        info.append("Copied: \(Self.tooltipDateFormatter.string(from: item.date))")
+        let formats = ClipboardFormats.displayNames(for: item.pasteboardTypes)
+        if !formats.isEmpty {
+            info.append("Formats: \(formats.joined(separator: ", "))")
+        }
+        info.append("Size: \(sizeDescription(for: item.text))")
+        if item.text != item.originalText {
+            info.append("Edited or transformed (original shown above)")
+        }
+        if let slot = item.pinnedSlot {
+            info.append("Pinned to slot \(slot) (⌥\(slot))")
+        }
+        return "\(item.originalText)\n────────────────────\n\(info.joined(separator: "\n"))"
+    }
+
+    private func sizeDescription(for text: String) -> String {
+        let characters = text.count
+        let lines = text.reduce(into: 1) { count, character in
+            if character.isNewline { count += 1 }
+        }
+        let words = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+        var parts = ["\(characters) \(characters == 1 ? "character" : "characters")"]
+        parts.append("\(words) \(words == 1 ? "word" : "words")")
+        if lines > 1 {
+            parts.append("\(lines) lines")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private var noteTabs: [NoteTab] {
