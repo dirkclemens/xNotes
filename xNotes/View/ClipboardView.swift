@@ -15,6 +15,8 @@ struct ClipboardView: View {
     @State private var selection: ClipboardItem.ID?
     @State private var pendingSelection: ClipboardItem.ID?
     @State private var editItem: ClipboardItem?
+    /// Row under the mouse. Its tooltip is rebuilt on hover so file checks are current.
+    @State private var hoveredItemId: ClipboardItem.ID?
     @AppStorage("clipboardLineLimit") private var clipboardLineLimit: Int = 4
 
     var body: some View {
@@ -77,6 +79,13 @@ struct ClipboardView: View {
                     .lineLimit(clipboardLineLimit)
             }
             .help(tooltipText(for: item))
+            .onHover { hovering in
+                if hovering {
+                    hoveredItemId = item.id
+                } else if hoveredItemId == item.id {
+                    hoveredItemId = nil
+                }
+            }
             .contentShape(Rectangle())
             .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
         }
@@ -248,7 +257,12 @@ struct ClipboardView: View {
             info.append("Formats: \(formats.joined(separator: ", "))")
         }
         if item.isFileItem {
-            info.append(contentsOf: fileInfoLines(for: item))
+            // Checking the files touches the disk, so only for the row under the mouse.
+            if hoveredItemId == item.id {
+                info.append(contentsOf: fileInfoLines(for: item))
+            } else {
+                info.append("\(item.filePaths.count) \(item.filePaths.count == 1 ? "file" : "files")")
+            }
         } else {
             info.append("Size: \(sizeDescription(for: item.text))")
         }

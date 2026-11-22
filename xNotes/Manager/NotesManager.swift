@@ -562,7 +562,14 @@ class NotesManager: ObservableObject {
 
     /// Puts the item on the clipboard the way it was copied: files as files, text as text.
     /// `text` overrides the item's text (e.g. its original before edits).
-    func writeClipboardItemToPasteboard(_ item: ClipboardItem, text: String? = nil) {
+    /// Files that no longer exist are left out and reported; returns false if nothing is left.
+    @discardableResult
+    func writeClipboardItemToPasteboard(_ item: ClipboardItem, text: String? = nil) -> Bool {
+        var item = item
+        if item.isFileItem {
+            guard let existing = itemKeepingExistingFiles(item) else { return false }
+            item = existing
+        }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         if item.isFileItem {
@@ -581,13 +588,46 @@ class NotesManager: ObservableObject {
             pasteboard.setString(value, forType: .string)
             lastClipboardString = value
         }
+        return true
+    }
+
+    /// The item reduced to the files that still exist. Missing files are reported in the
+    /// clipboard banner; returns nil (and beeps) when none of them exists any more.
+    /// Otherwise the Finder would only get the names and create a text clipping.
+    private func itemKeepingExistingFiles(_ item: ClipboardItem) -> ClipboardItem? {
+        let existing = item.filePaths.filter { FileManager.default.fileExists(atPath: $0) }
+        let missing = item.filePaths.filter { !existing.contains($0) }
+        guard !missing.isEmpty else { return item }
+
+        let missingNames = missing.map { ($0 as NSString).lastPathComponent }
+        if existing.isEmpty {
+            NSSound.beep()
+            let message = missing.count == 1
+                ? "“\(missingNames[0])” no longer exists at its original location."
+                : "None of the \(missing.count) files exists at its original location any more."
+            TransformRegistry.shared.show(message, isError: true)
+            return nil
+        }
+        TransformRegistry.shared.show(
+            "Skipped \(missing.count) missing \(missing.count == 1 ? "file" : "files"): \(missingNames.joined(separator: ", "))",
+            isError: true
+        )
+        return ClipboardItem(
+            id: item.id,
+            text: existing.map { ($0 as NSString).lastPathComponent }.joined(separator: "\n"),
+            date: item.date,
+            sourceAppName: item.sourceAppName,
+            sourceAppBundleId: item.sourceAppBundleId,
+            pasteboardTypes: item.pasteboardTypes,
+            filePaths: existing
+        )
     }
 
     /// Pastes the item into the last active app, as files or as (normalized) text.
     func pasteClipboardItemIntoLastApp(_ item: ClipboardItem) -> Bool {
         guard item.isFileItem else { return pasteTextIntoLastApp(item.text) }
         guard ensureAccessibilityPermission() else { return false }
-        writeClipboardItemToPasteboard(item)
+        guard writeClipboardItemToPasteboard(item) else { return false }
         return sendPasteToLastApp()
     }
 
