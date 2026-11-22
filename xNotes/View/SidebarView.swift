@@ -12,6 +12,7 @@ struct SidebarView: View {
     @Binding var keepWindowOpen: Bool
     let onOpenSettings: () -> Void
     let onRequestClose: (NoteTab) -> Void
+    let onRequestToggleLock: (NoteTab) -> Void
 
     @AppStorage("tabRainbowBorder") private var showsRainbowBorder = true
 
@@ -41,7 +42,7 @@ struct SidebarView: View {
                             borderRotationDegrees: notesManager.autoDeleteRotationDegrees(for: tab),
                             showsRainbowBorder: showsRainbowBorder,
                             onSelect: { notesManager.selectedTabId = tab.id },
-                            onToggleLock: { notesManager.updateLocked(for: tab.id, isLocked: !tab.isLocked) },
+                            onToggleLock: { onRequestToggleLock(tab) },
                             onClose: canClose(tab) ? { onRequestClose(tab) } : nil
                         )
                     }

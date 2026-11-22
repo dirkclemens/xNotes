@@ -33,7 +33,8 @@ private struct ClipboardOnlyContent: View {
             TabContextBar(
                 tab: tab,
                 onSearch: { isFilterFocused.wrappedValue = true },
-                onRequestClose: { _ in }
+                onRequestClose: { _ in },
+                onRequestToggleLock: { _ in }
             )
 
             HStack(spacing: 8) {

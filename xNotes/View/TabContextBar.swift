@@ -11,6 +11,7 @@ struct TabContextBar: View {
     @ObservedObject var tab: NoteTab
     let onSearch: () -> Void
     let onRequestClose: (NoteTab) -> Void
+    let onRequestToggleLock: (NoteTab) -> Void
 
     @EnvironmentObject var notesManager: NotesManager
     @EnvironmentObject var textExpansionStore: TextExpansionStore
@@ -148,9 +149,7 @@ struct TabContextBar: View {
     private var actionsMenu: some View {
         Menu {
             Button("Rename…", action: beginEditingTitle)
-            Button(tab.isLocked ? "Unlock Tab" : "Lock Tab") {
-                notesManager.updateLocked(for: tab.id, isLocked: !tab.isLocked)
-            }
+            Button(tab.isLocked ? "Unlock Tab" : "Lock Tab") { onRequestToggleLock(tab) }
             Divider()
             Button("Delete Tab…") { onRequestClose(tab) }
                 .disabled(tab.isLocked || notesManager.tabs.count <= 1)
