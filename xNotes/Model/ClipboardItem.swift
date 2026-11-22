@@ -38,9 +38,16 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     }
 
     /// The source app marked the entry as a password or other secret.
-    var isSensitive: Bool {
+    var isMarkedConcealed: Bool {
         pasteboardTypes.contains(where: ClipboardFormats.concealedTypes.contains)
     }
+
+    /// Copied from a password app that doesn't mark its entries (e.g. Apple's Passwords).
+    var isFromPasswordApp: Bool {
+        sourceAppBundleId.map(ClipboardFormats.passwordSourceApps.contains) ?? false
+    }
+
+    var isSensitive: Bool { isMarkedConcealed || isFromPasswordApp }
 
     enum CodingKeys: String, CodingKey {
         case id, text, originalText, date, pinnedSlot, sourceAppName, sourceAppBundleId, pasteboardTypes

@@ -15,6 +15,13 @@ enum ClipboardFormats {
         "com.agilebits.onepassword", // older 1Password versions
     ]
 
+    /// Apps whose copies are always treated as sensitive because they don't mark
+    /// passwords themselves (Apple's Passwords app, Keychain Access).
+    static let passwordSourceApps: Set<String> = [
+        "com.apple.Passwords",
+        "com.apple.keychainaccess",
+    ]
+
     /// Short-lived content the source app restores right away (e.g. snippet tools
     /// that paste through the clipboard). Never recorded.
     static let transientTypes: Set<String> = [

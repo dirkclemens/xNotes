@@ -130,7 +130,7 @@ struct SettingsView: View {
                 .help("Latest clipboard entries shown when you right-click the menu bar icon")
 
                 Toggle("Save Sensitive Entries", isOn: $clipboardSaveSensitive)
-                Text("Password managers mark copied passwords as sensitive. When off, xNotes doesn't record them. Entries marked as temporary or auto-generated are never recorded.")
+                Text("Password managers mark copied passwords as sensitive; copies from Apple's Passwords app and Keychain Access count as sensitive too. When off, xNotes doesn't record them. Entries marked as temporary or auto-generated are never recorded.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

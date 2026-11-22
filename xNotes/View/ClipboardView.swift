@@ -221,8 +221,10 @@ struct ClipboardView: View {
 
     private func tooltipText(for item: ClipboardItem) -> String {
         var info: [String] = []
-        if item.isSensitive {
-            info.append("⚠︎ Marked as sensitive (password) by the source app")
+        if item.isMarkedConcealed {
+            info.append("⚠︎ Sensitive: marked as a password by the source app")
+        } else if item.isFromPasswordApp {
+            info.append("⚠︎ Sensitive: copied from a password app")
         }
         info.append("Source: \(item.sourceAppName ?? "Unknown")")
         if let bundleId = item.sourceAppBundleId {
