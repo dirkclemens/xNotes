@@ -13,6 +13,9 @@ struct SidebarTile: View {
     /// Rotates the border gradient; encodes the time left until auto-delete (0 for locked tabs).
     let borderRotationDegrees: Double
     let showsRainbowBorder: Bool
+    /// When the tab will be deleted automatically (nil when locked); shown in the tooltip.
+    let autoDeleteDeadline: Date?
+    let autoDeleteDays: Int
     let onSelect: () -> Void
     let onToggleLock: () -> Void
     let onClose: (() -> Void)?
@@ -51,7 +54,8 @@ struct SidebarTile: View {
             }
         }
         .onHover { isHovered = $0 }
-        .help(title)
+        // Built in the body, so it's current when hovering re-renders the tile.
+        .help(tooltip)
         .accessibilityLabel(title)
         .contextMenu {
             Button(tab.isLocked ? "Unlock Tab" : "Lock Tab", action: onToggleLock)
@@ -93,6 +97,23 @@ struct SidebarTile: View {
             .overlay(Circle().stroke(Color.secondary.opacity(0.35), lineWidth: 0.5))
             .offset(x: 3, y: 3)
             .allowsHitTesting(false)
+    }
+
+    private var tooltip: String {
+        guard tab.kind == .note else { return title }
+        guard let deadline = autoDeleteDeadline else {
+            return "\(title)\nLocked – never deleted automatically"
+        }
+        let now = Date()
+        var lines = [title]
+        if deadline > now {
+            lines.append("Deleted automatically \(AutoDeleteFormat.relative(deadline, now: now))")
+            lines.append("(\(AutoDeleteFormat.absolute(deadline)), unless edited or locked)")
+        } else {
+            lines.append("Will be deleted automatically any moment – edit or lock it to keep it")
+        }
+        lines.append("The gray border turns towards the deletion (\(autoDeleteDays)-day period)")
+        return lines.joined(separator: "\n")
     }
 
     /// First letter of the title, skipping Markdown markers such as "# ".
