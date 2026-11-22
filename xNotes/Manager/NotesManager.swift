@@ -378,6 +378,22 @@ class NotesManager: ObservableObject {
         let sourceApp = currentClipboardSourceApp()
         guard shouldRecord(pasteboardTypes: types, sourceBundleId: sourceApp?.bundleIdentifier) else { return }
 
+        // Files (Finder copies them together with their names as text): keep the paths.
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL],
+           !urls.isEmpty {
+            let paths = urls.map(\.path)
+            let key = paths.joined(separator: "\n")
+            guard key != lastClipboardString else { return }
+            lastClipboardString = key
+            appendClipboardItem(
+                urls.map(\.lastPathComponent).joined(separator: "\n"),
+                sourceApp: sourceApp,
+                pasteboardTypes: types,
+                filePaths: paths
+            )
+            return
+        }
+
         guard let text = pasteboard.string(forType: .string) else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -402,15 +418,21 @@ class NotesManager: ObservableObject {
         return true
     }
 
-    private func appendClipboardItem(_ text: String, sourceApp: NSRunningApplication?, pasteboardTypes: [String]) {
+    private func appendClipboardItem(
+        _ text: String,
+        sourceApp: NSRunningApplication?,
+        pasteboardTypes: [String],
+        filePaths: [String] = []
+    ) {
         guard let index = tabs.firstIndex(where: { $0.kind == .clipboard }) else { return }
         var items = tabs[index].clipboardItems
 
-        if items.contains(where: { $0.pinnedSlot != nil && $0.text == text }) {
+        let isSame: (ClipboardItem) -> Bool = { $0.text == text && $0.filePaths == filePaths }
+        if items.contains(where: { $0.pinnedSlot != nil && isSame($0) }) {
             return
         }
 
-        if let existingIndex = items.firstIndex(where: { $0.text == text }) {
+        if let existingIndex = items.firstIndex(where: isSame) {
             items.remove(at: existingIndex)
         }
         items.insert(
@@ -418,7 +440,8 @@ class NotesManager: ObservableObject {
                 text: text,
                 sourceAppName: sourceApp?.localizedName,
                 sourceAppBundleId: sourceApp?.bundleIdentifier,
-                pasteboardTypes: pasteboardTypes
+                pasteboardTypes: pasteboardTypes,
+                filePaths: filePaths
             ),
             at: 0
         )
@@ -435,8 +458,14 @@ class NotesManager: ObservableObject {
         return tabs[index].clipboardItems.first(where: { $0.id == itemId })?.text
     }
 
+    func clipboardItem(id: ClipboardItem.ID) -> ClipboardItem? {
+        tabs.first(where: { $0.kind == .clipboard })?.clipboardItems.first(where: { $0.id == id })
+    }
+
     func appendClipboardItemToTab(itemId: ClipboardItem.ID, tabId: UUID) {
-        guard let text = clipboardText(for: itemId) else { return }
+        guard let item = clipboardItem(id: itemId) else { return }
+        // Files go into the note as their full paths.
+        let text = item.isFileItem ? item.filePaths.joined(separator: "\n") : item.text
         guard let index = tabs.firstIndex(where: { $0.id == tabId }) else { return }
         guard tabs[index].kind == .note else { return }
         let existing = tabs[index].content
@@ -528,7 +557,78 @@ class NotesManager: ObservableObject {
         guard (1...9).contains(slot) else { return false }
         guard let index = tabs.firstIndex(where: { $0.kind == .clipboard }) else { return false }
         guard let item = tabs[index].clipboardItems.first(where: { $0.pinnedSlot == slot }) else { return false }
-        return pasteTextIntoLastApp(item.text)
+        return pasteClipboardItemIntoLastApp(item)
+    }
+
+    /// Puts the item on the clipboard the way it was copied: files as files, text as text.
+    /// `text` overrides the item's text (e.g. its original before edits).
+    /// Files that no longer exist are left out and reported; returns false if nothing is left.
+    @discardableResult
+    func writeClipboardItemToPasteboard(_ item: ClipboardItem, text: String? = nil) -> Bool {
+        var item = item
+        if item.isFileItem {
+            guard let existing = itemKeepingExistingFiles(item) else { return false }
+            item = existing
+        }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if item.isFileItem {
+            // Like the Finder: each file as a file URL plus its name as text, so text-only
+            // targets get the names instead of nothing.
+            let pasteboardItems = item.fileURLs.map { url -> NSPasteboardItem in
+                let pasteboardItem = NSPasteboardItem()
+                pasteboardItem.setString(url.absoluteString, forType: .fileURL)
+                pasteboardItem.setString(url.lastPathComponent, forType: .string)
+                return pasteboardItem
+            }
+            pasteboard.writeObjects(pasteboardItems)
+            lastClipboardString = item.filePaths.joined(separator: "\n")
+        } else {
+            let value = text ?? item.text
+            pasteboard.setString(value, forType: .string)
+            lastClipboardString = value
+        }
+        return true
+    }
+
+    /// The item reduced to the files that still exist. Missing files are reported in the
+    /// clipboard banner; returns nil (and beeps) when none of them exists any more.
+    /// Otherwise the Finder would only get the names and create a text clipping.
+    private func itemKeepingExistingFiles(_ item: ClipboardItem) -> ClipboardItem? {
+        let existing = item.filePaths.filter { FileManager.default.fileExists(atPath: $0) }
+        let missing = item.filePaths.filter { !existing.contains($0) }
+        guard !missing.isEmpty else { return item }
+
+        let missingNames = missing.map { ($0 as NSString).lastPathComponent }
+        if existing.isEmpty {
+            NSSound.beep()
+            let message = missing.count == 1
+                ? "“\(missingNames[0])” no longer exists at its original location."
+                : "None of the \(missing.count) files exists at its original location any more."
+            TransformRegistry.shared.show(message, isError: true)
+            return nil
+        }
+        TransformRegistry.shared.show(
+            "Skipped \(missing.count) missing \(missing.count == 1 ? "file" : "files"): \(missingNames.joined(separator: ", "))",
+            isError: true
+        )
+        return ClipboardItem(
+            id: item.id,
+            text: existing.map { ($0 as NSString).lastPathComponent }.joined(separator: "\n"),
+            date: item.date,
+            sourceAppName: item.sourceAppName,
+            sourceAppBundleId: item.sourceAppBundleId,
+            pasteboardTypes: item.pasteboardTypes,
+            filePaths: existing
+        )
+    }
+
+    /// Pastes the item into the last active app, as files or as (normalized) text.
+    func pasteClipboardItemIntoLastApp(_ item: ClipboardItem) -> Bool {
+        guard item.isFileItem else { return pasteTextIntoLastApp(item.text) }
+        guard ensureAccessibilityPermission() else { return false }
+        guard writeClipboardItemToPasteboard(item) else { return false }
+        return sendPasteToLastApp()
     }
 
     func pasteTextIntoLastApp(_ text: String) -> Bool {
@@ -539,6 +639,11 @@ class NotesManager: ObservableObject {
         NSPasteboard.general.setString(preparedText, forType: .string)
         lastClipboardString = preparedText
 
+        return sendPasteToLastApp()
+    }
+
+    /// Hides the panel, activates the last app and sends ⌘V.
+    private func sendPasteToLastApp() -> Bool {
         NotificationCenter.default.post(name: AppDelegate.closePopoverNotification, object: nil)
 
         let targetApp = resolvePasteTargetApp()
@@ -583,7 +688,7 @@ class NotesManager: ObservableObject {
                 }
             case .clipboard:
                 let title = displayTitle(for: tab)
-                for item in tab.clipboardItems where item.text.range(of: trimmed, options: options) != nil {
+                for item in tab.clipboardItems where item.searchableText.range(of: trimmed, options: options) != nil {
                     results.append(SearchResult(tabId: tab.id, tabTitle: title, clipboardItemId: item.id, range: nil))
                 }
             case .expansions:
