@@ -20,6 +20,10 @@ class NotesManager: ObservableObject {
     let richTextStore = ClipboardRichTextStore(
         folderName: DemoMode.isEnabled ? "ClipboardRichText-Demo" : "ClipboardRichText"
     )
+    let imageStore = ClipboardImageStore(
+        folderName: DemoMode.isEnabled ? "ClipboardImages-Demo" : "ClipboardImages"
+    )
+    static let clipboardSaveImagesKey = "clipboardSaveImages"
     private lazy var tabsStore = TabsFileStore(
         legacyDefaultsKey: storageKey,
         fileName: DemoMode.isEnabled ? "tabs-demo.json" : "tabs.json"
@@ -163,10 +167,12 @@ class NotesManager: ObservableObject {
         removeUnusedRichText()
     }
 
-    /// Deletes formatted versions of clipboard entries that no longer exist.
+    /// Deletes formatted versions and images of clipboard entries that no longer exist.
     private func removeUnusedRichText() {
         guard let clipboardTab = tabs.first(where: { $0.kind == .clipboard }) else { return }
-        richTextStore.removeAll(except: Set(clipboardTab.clipboardItems.map(\.id)))
+        let ids = Set(clipboardTab.clipboardItems.map(\.id))
+        richTextStore.removeAll(except: ids)
+        imageStore.removeAll(except: ids)
     }
 
     /// Writes pending changes synchronously, e.g. when the app is about to quit.
@@ -251,6 +257,7 @@ class NotesManager: ObservableObject {
         }
     }
 
+    /// Images are left out of backups (they would make the JSON huge).
     func exportBackupData() throws -> Data {
         let clipboardItems = tabs.first(where: { $0.kind == .clipboard })?.clipboardItems ?? []
         let richText = clipboardItems.flatMap { item in
@@ -267,7 +274,7 @@ class NotesManager: ObservableObject {
                 title: tab.title,
                 isLocked: tab.isLocked,
                 kind: tab.kind,
-                clipboardItems: tab.clipboardItems,
+                clipboardItems: tab.clipboardItems.filter { !$0.isImageItem },
                 lastEditedAt: tab.lastEditedAt
             )
         }
@@ -415,7 +422,23 @@ class NotesManager: ObservableObject {
             return
         }
 
-        guard let text = pasteboard.string(forType: .string) else { return }
+        // Images: screenshots and "Copy Image". Text that comes with a picture of itself
+        // (Word, Numbers, …) stays text; a bare URL next to an image is the image's address.
+        let string = pasteboard.string(forType: .string)
+        if string.map({ ClipboardFormats.webURL(in: $0) != nil }) ?? true,
+           let imageData = ClipboardImageStore.imageData(on: pasteboard) {
+            guard saveImagesEnabled else { return }
+            Task.detached(priority: .userInitiated) {
+                let processed = ClipboardImageStore.process(imageData)
+                await MainActor.run {
+                    guard let processed else { return }
+                    self.appendImageItem(processed, sourceApp: sourceApp, pasteboardTypes: types)
+                }
+            }
+            return
+        }
+
+        guard let text = string else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         if trimmed == lastClipboardString {
@@ -430,6 +453,48 @@ class NotesManager: ObservableObject {
             link: ClipboardFormats.copiedLink(on: pasteboard)
         )
     }
+
+    private var saveImagesEnabled: Bool {
+        UserDefaults.standard.object(forKey: Self.clipboardSaveImagesKey) as? Bool ?? true
+    }
+
+    private func appendImageItem(
+        _ image: ClipboardImageStore.ProcessedImage,
+        sourceApp: NSRunningApplication?,
+        pasteboardTypes: [String]
+    ) {
+        let key = Self.imageClipboardKey(image.info.hash)
+        guard key != lastClipboardString else { return }
+        lastClipboardString = key
+        guard let index = tabs.firstIndex(where: { $0.kind == .clipboard }) else { return }
+        var items = tabs[index].clipboardItems
+
+        let isSame: (ClipboardItem) -> Bool = { $0.imageInfo?.hash == image.info.hash }
+        if items.contains(where: { $0.pinnedSlot != nil && isSame($0) }) {
+            return
+        }
+        if let existingIndex = items.firstIndex(where: isSame) {
+            items.remove(at: existingIndex)
+        }
+
+        let item = ClipboardItem(
+            text: "Image \(image.info.width) × \(image.info.height)",
+            sourceAppName: sourceApp?.localizedName,
+            sourceAppBundleId: sourceApp?.bundleIdentifier,
+            pasteboardTypes: pasteboardTypes,
+            imageInfo: image.info
+        )
+        guard imageStore.save(image, for: item.id) else { return }
+        items.insert(item, at: 0)
+
+        items = orderedClipboardItems(items)
+        items = trimClipboardItems(items)
+        tabs[index].clipboardItems = items
+        saveWithDelay()
+    }
+
+    /// Marks an image as already seen, so xNotes' own pastes aren't recorded again.
+    private static func imageClipboardKey(_ hash: String) -> String { "image:" + hash }
 
     /// Follows the nspasteboard.org markers: transient and auto-generated content is
     /// never recorded, concealed content (passwords) only if enabled in Settings.
@@ -498,7 +563,8 @@ class NotesManager: ObservableObject {
     }
 
     func appendClipboardItemToTab(itemId: ClipboardItem.ID, tabId: UUID) {
-        guard let item = clipboardItem(id: itemId) else { return }
+        // Notes are Markdown text; images can't go there.
+        guard let item = clipboardItem(id: itemId), !item.isImageItem else { return }
         // Files go into the note as their full paths, links as Markdown links.
         if item.isFileItem {
             appendText(item.filePaths.joined(separator: "\n"), toTab: tabId)
@@ -638,6 +704,22 @@ class NotesManager: ObservableObject {
             guard let existing = itemKeepingExistingFiles(item) else { return false }
             item = existing
         }
+        if let imageInfo = item.imageInfo {
+            guard let png = imageStore.imageData(for: item.id) else {
+                NSSound.beep()
+                TransformRegistry.shared.show("The image file of this entry is missing.", isError: true)
+                return false
+            }
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setData(png, forType: .png)
+            // Older apps only read TIFF.
+            if let tiff = NSBitmapImageRep(data: png)?.tiffRepresentation {
+                pasteboard.setData(tiff, forType: .tiff)
+            }
+            lastClipboardString = Self.imageClipboardKey(imageInfo.hash)
+            return true
+        }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         if item.isFileItem {
@@ -708,7 +790,7 @@ class NotesManager: ObservableObject {
     /// Pastes the item into the last active app: files as files; text with its formatting
     /// unless "Paste as Plain Text" is on (`asPlainText` overrides the setting).
     func pasteClipboardItemIntoLastApp(_ item: ClipboardItem, asPlainText: Bool? = nil) -> Bool {
-        if !item.isFileItem {
+        if item.isTextItem {
             let plain = asPlainText ?? UserDefaults.standard.bool(forKey: pasteAsPlainTextKey)
             // Links go on the clipboard as links too, so Mail, Notes etc. can show the title.
             guard !plain, item.canPasteRichText || (item.isLink && item.text == item.originalText) else {

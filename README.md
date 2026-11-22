@@ -15,7 +15,7 @@ xNotes is a lightweight macOS menu bar notes app that keeps notes in colour-code
 - Clipboard history tab (always visible)
 - Pinned clipboard slots (max 9)
 - Source app name and icon for clipboard items; hover for formats, size and more
-- Clipboard keeps files, formatting (RTF, HTML) and links with titles; skips passwords marked as sensitive
+- Clipboard keeps images, files, formatting (RTF, HTML) and links with titles; skips passwords marked as sensitive
 - Clipboard item transformations (case, JSON, URL, Base64, line tools, etc.), grouped in submenus
 - Extensible with your own transformations as JavaScript plugins — no rebuild needed
 - Filter field in the clipboard-only panel
@@ -59,7 +59,8 @@ Alternatively, right-click the app in Finder and choose "Open".
 </p>
 
 ### Clipboard
-- New clipboard entries are captured automatically (text, formatted text and files)
+- New clipboard entries are captured automatically (text, formatted text, files and images)
+- Images (screenshots, "Copy Image") are kept as PNG with a thumbnail in the list; paste them back, open them in Preview or save them. Settings ▸ Clipboard ▸ Save Images turns this off. Images are stored in `ClipboardImages/` next to `tabs.json` and are not part of backups
 - Formatting (RTF, HTML) is kept and pasted along unless Settings ▸ Clipboard ▸ Paste as Plain Text is on; the context menu offers the other variant per item. Edited or transformed entries paste as plain text. Formatted versions are stored next to `tabs.json` in `ClipboardRichText/` and included in backups
 - Files copied in the Finder are kept as files: pasting puts the files back (e.g. into a Finder window or a mail), "Show in Finder" reveals them, "Append to Tab" adds their paths
 - Duplicates are deduplicated; newest moves to top

@@ -15,8 +15,8 @@ extension NotesManager {
     }
 
     func applyTransform(_ transform: ClipboardTransform, toClipboardItem id: ClipboardItem.ID) {
-        // Transforms work on text; file entries only carry the file names as text.
-        guard clipboardItem(id: id)?.isFileItem == false,
+        // Transforms work on text; file and image entries only carry a description as text.
+        guard clipboardItem(id: id)?.isTextItem == true,
               let original = clipboardText(for: id) else { return }
 
         var argument: String?

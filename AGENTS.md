@@ -41,4 +41,5 @@
 - Clipboard transform plugins are `.js` files in `~/Library/Application Support/<bundle id>/Transforms/` (format: see the README seeded there and `JavaScriptTransformLoader`). New built-in transforms go into `BuiltinTransforms.all`; the context menu is generated from `TransformRegistry`.
 - The target uses `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`; code that runs off the main thread must be marked `nonisolated`.
 - Formatted versions (RTF/HTML) of clipboard entries live in `~/Library/Application Support/<bundle id>/ClipboardRichText/<item id>.<rtf|html>` (`ClipboardRichTextStore`); files of removed entries are deleted on save.
+- Clipboard images live in `~/Library/Application Support/<bundle id>/ClipboardImages/<item id>.png` plus `-thumb.png` (`ClipboardImageStore`); they are not included in backups.
 - Backups are JSON payloads (`AppBackup`). If you add fields, keep decoding backward-compatible.

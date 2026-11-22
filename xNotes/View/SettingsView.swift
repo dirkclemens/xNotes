@@ -33,6 +33,7 @@ struct SettingsView: View {
     @AppStorage("textExpansionEnabled") private var textExpansionEnabled: Bool = false
     @AppStorage("tabAutoDeleteDays") private var tabAutoDeleteDays: Int = 7
     @AppStorage("tabRainbowBorder") private var tabRainbowBorder: Bool = true
+    @AppStorage(NotesManager.clipboardSaveImagesKey) private var clipboardSaveImages: Bool = true
     @AppStorage(NotesManager.clipboardSaveSensitiveKey) private var clipboardSaveSensitive: Bool = false
     @AppStorage(AppDelegate.statusMenuClipboardCountKey) private var statusMenuClipboardCount: Int = AppDelegate.statusMenuClipboardCountDefault
 
@@ -129,6 +130,11 @@ struct SettingsView: View {
                 }
                 .help("Latest clipboard entries shown when you right-click the menu bar icon")
 
+                Toggle("Save Images", isOn: $clipboardSaveImages)
+                Text("Screenshots and copied images are kept as PNG files (up to 30 MB each). They are not included in backups.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 Toggle("Save Sensitive Entries", isOn: $clipboardSaveSensitive)
                 Text("Password managers mark copied passwords as sensitive; copies from Apple's Passwords app and Keychain Access count as sensitive too. When off, xNotes doesn't record them. Entries marked as temporary or auto-generated are never recorded.")
                     .font(.caption)
@@ -210,7 +216,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 case nil:
-                    Text("A backup contains all tabs and the clipboard history. Importing replaces the current tabs.")
+                    Text("A backup contains all tabs and the clipboard history (without images). Importing replaces the current tabs.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
