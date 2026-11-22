@@ -5,6 +5,7 @@
 
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 struct ClipboardView: View {
     let items: [ClipboardItem]
@@ -62,6 +63,9 @@ struct ClipboardView: View {
                         .foregroundColor(.white)
                         .background(Circle().fill(Color.accentColor))
                         .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+                }
+                if item.isImageItem {
+                    imageThumbnail(for: item)
                 }
                 if let firstPath = item.filePaths.first {
                     Image(nsImage: NSWorkspace.shared.icon(forFile: firstPath))
@@ -188,6 +192,14 @@ struct ClipboardView: View {
                 }
             }
         }
+        if item.isImageItem {
+            Button("Open in Preview") {
+                openImageInPreview(item)
+            }
+            Button("Save Image As…") {
+                saveImage(item)
+            }
+        }
         if item.isFileItem {
             Button(item.filePaths.count == 1 ? "Show in Finder" : "Show Files in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting(item.fileURLs)
@@ -197,19 +209,21 @@ struct ClipboardView: View {
 
         Divider()
 
-        if !item.isFileItem {
+        if item.isTextItem {
             Button("Edit Item…") {
                 editItem = item
             }
         }
-        Menu("Append to Tab") {
-            if noteTabs.isEmpty {
-                Button("No Note Tabs") {}
-                    .disabled(true)
-            } else {
-                ForEach(noteTabs) { tab in
-                    Button(notesManager.displayTitle(for: tab)) {
-                        notesManager.appendClipboardItemToTab(itemId: item.id, tabId: tab.id)
+        if !item.isImageItem {
+            Menu("Append to Tab") {
+                if noteTabs.isEmpty {
+                    Button("No Note Tabs") {}
+                        .disabled(true)
+                } else {
+                    ForEach(noteTabs) { tab in
+                        Button(notesManager.displayTitle(for: tab)) {
+                            notesManager.appendClipboardItemToTab(itemId: item.id, tabId: tab.id)
+                        }
                     }
                 }
             }
@@ -224,7 +238,7 @@ struct ClipboardView: View {
             }
         }
 
-        if !item.isFileItem {
+        if item.isTextItem {
             Divider()
             transformMenus(for: item)
         }
@@ -300,7 +314,11 @@ struct ClipboardView: View {
         if !formats.isEmpty {
             info.append("Formats: \(formats.joined(separator: ", "))")
         }
-        if item.isFileItem {
+        if let image = item.imageInfo {
+            let size = ByteCountFormatter.string(fromByteCount: Int64(image.byteCount), countStyle: .file)
+            info.append("Image: \(image.width) × \(image.height) pixels, stored as PNG (\(size))")
+            info.append("Copied as: \(image.originalFormat)")
+        } else if item.isFileItem {
             // Checking the files touches the disk, so only for the row under the mouse.
             if hoveredItemId == item.id {
                 info.append(contentsOf: fileInfoLines(for: item))
@@ -324,7 +342,9 @@ struct ClipboardView: View {
             info.append("Pinned to slot \(slot) (⌥\(slot))")
         }
         let content: String
-        if item.isFileItem {
+        if item.isImageItem {
+            content = "Image"
+        } else if item.isFileItem {
             content = item.filePaths.joined(separator: "\n")
         } else if let title = item.linkTitle, let url = item.linkURL {
             content = "\(title)\n\(url.absoluteString)"
@@ -333,6 +353,72 @@ struct ClipboardView: View {
         }
         return "\(content)\n────────────────────\n\(info.joined(separator: "\n"))"
     }
+
+    /// Small preview of an image entry; falls back to a symbol if the file is missing.
+    @ViewBuilder
+    private func imageThumbnail(for item: ClipboardItem) -> some View {
+        if let thumbnail = notesManager.imageStore.thumbnail(for: item.id) {
+            Image(nsImage: thumbnail)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(maxWidth: 64, maxHeight: 36, alignment: .leading)
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+                .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(Color.secondary.opacity(0.3), lineWidth: 0.5))
+                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+        } else {
+            Image(systemName: "photo")
+                .foregroundStyle(.secondary)
+                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+        }
+    }
+
+    /// Opens a copy, so edits in Preview don't change the stored clipboard image.
+    private func openImageInPreview(_ item: ClipboardItem) {
+        guard let data = notesManager.imageStore.imageData(for: item.id) else {
+            transformRegistry.show("The image file of this entry is missing.", isError: true)
+            return
+        }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(imageFileName(for: item))
+        do {
+            try data.write(to: url, options: .atomic)
+            NSWorkspace.shared.open(url)
+        } catch {
+            transformRegistry.show("Couldn't open the image: \(error.localizedDescription)", isError: true)
+        }
+    }
+
+    private func saveImage(_ item: ClipboardItem) {
+        guard let data = notesManager.imageStore.imageData(for: item.id) else {
+            transformRegistry.show("The image file of this entry is missing.", isError: true)
+            return
+        }
+        let panel = NSSavePanel()
+        panel.title = "Save Image"
+        panel.allowedContentTypes = [.png]
+        panel.nameFieldStringValue = imageFileName(for: item)
+        panel.canCreateDirectories = true
+        panel.begin { result in
+            guard result == .OK, let url = panel.url else { return }
+            do {
+                try data.write(to: url, options: .atomic)
+            } catch {
+                transformRegistry.show("Couldn't save the image: \(error.localizedDescription)", isError: true)
+            }
+        }
+    }
+
+    /// e.g. "Clipboard Image 2026-11-22 at 14.05.12.png", like macOS screenshots.
+    private func imageFileName(for item: ClipboardItem) -> String {
+        "Clipboard Image \(Self.imageFileDateFormatter.string(from: item.date)).png"
+    }
+
+    private static let imageFileDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
+        return f
+    }()
 
     /// Link title (if any) followed by the domain in gray; plain text otherwise.
     private func rowText(for item: ClipboardItem) -> Text {

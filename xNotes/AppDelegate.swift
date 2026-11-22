@@ -294,7 +294,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     }
 
                     var icon: NSImage?
-                    if let firstPath = item.filePaths.first {
+                    if item.isImageItem, let thumbnail = notesManager.imageStore.thumbnail(for: item.id) {
+                        icon = thumbnail.copy() as? NSImage
+                    } else if let firstPath = item.filePaths.first {
                         icon = NSWorkspace.shared.icon(forFile: firstPath)
                     } else if let bundleId = item.sourceAppBundleId,
                        let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {

@@ -26,6 +26,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     let copiedLinkURL: String?
     /// Also set later when the page title is fetched for a Markdown link.
     var copiedLinkTitle: String?
+    /// Set for image entries; the image itself is stored by `ClipboardImageStore`.
+    let imageInfo: ClipboardImageInfo?
 
     init(
         id: UUID = UUID(),
@@ -39,7 +41,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         filePaths: [String] = [],
         richTextFormats: [ClipboardRichTextStore.Format] = [],
         copiedLinkURL: String? = nil,
-        copiedLinkTitle: String? = nil
+        copiedLinkTitle: String? = nil,
+        imageInfo: ClipboardImageInfo? = nil
     ) {
         self.id = id
         self.text = text
@@ -53,11 +56,18 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         self.richTextFormats = richTextFormats
         self.copiedLinkURL = copiedLinkURL
         self.copiedLinkTitle = copiedLinkTitle
+        self.imageInfo = imageInfo
     }
+
+    var isImageItem: Bool { imageInfo != nil }
+
+    /// Text-like entries can be edited, transformed and appended to notes.
+    var isTextItem: Bool { !isFileItem && !isImageItem }
 
     /// The web link this entry stands for: the copied link, or the text itself if it is
     /// a single http(s) URL. Edited entries only count if their new text is a URL.
     var linkURL: URL? {
+        guard !isImageItem else { return nil }
         if text == originalText, let copiedLinkURL, let url = URL(string: copiedLinkURL) {
             return url
         }
@@ -128,6 +138,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         case id, text, originalText, date, pinnedSlot, sourceAppName, sourceAppBundleId, pasteboardTypes, filePaths, richTextFormats
         case copiedLinkURL = "linkURL"
         case copiedLinkTitle = "linkTitle"
+        case imageInfo
     }
 
     init(from decoder: Decoder) throws {
@@ -144,6 +155,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         richTextFormats = try c.decodeIfPresent([ClipboardRichTextStore.Format].self, forKey: .richTextFormats) ?? []
         copiedLinkURL = try c.decodeIfPresent(String.self, forKey: .copiedLinkURL)
         copiedLinkTitle = try c.decodeIfPresent(String.self, forKey: .copiedLinkTitle)
+        imageInfo = try c.decodeIfPresent(ClipboardImageInfo.self, forKey: .imageInfo)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -166,5 +178,6 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         }
         try c.encodeIfPresent(copiedLinkURL, forKey: .copiedLinkURL)
         try c.encodeIfPresent(copiedLinkTitle, forKey: .copiedLinkTitle)
+        try c.encodeIfPresent(imageInfo, forKey: .imageInfo)
     }
 }
