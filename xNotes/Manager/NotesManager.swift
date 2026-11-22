@@ -499,15 +499,41 @@ class NotesManager: ObservableObject {
 
     func appendClipboardItemToTab(itemId: ClipboardItem.ID, tabId: UUID) {
         guard let item = clipboardItem(id: itemId) else { return }
-        // Files go into the note as their full paths, links with a title as Markdown links.
-        let text: String
+        // Files go into the note as their full paths, links as Markdown links.
         if item.isFileItem {
-            text = item.filePaths.joined(separator: "\n")
-        } else if item.linkTitle != nil, let markdownLink = item.markdownLink {
-            text = markdownLink
+            appendText(item.filePaths.joined(separator: "\n"), toTab: tabId)
+        } else if item.isLink {
+            Task {
+                if let markdownLink = await markdownLink(forItem: itemId) {
+                    appendText(markdownLink, toTab: tabId)
+                }
+            }
         } else {
-            text = item.text
+            appendText(item.text, toTab: tabId)
         }
+    }
+
+    /// `[Title](url)` for a link entry. Without a known title the page is loaded once
+    /// to read it (and the title is kept); if that fails, the domain is used.
+    func markdownLink(forItem itemId: ClipboardItem.ID) async -> String? {
+        guard let item = clipboardItem(id: itemId), let url = item.linkURL else { return nil }
+        if item.linkTitle == nil, item.text == item.originalText {
+            TransformRegistry.shared.show("Loading page title…")
+            if let title = await LinkTitleFetcher.title(for: url) {
+                setLinkTitle(title, forItem: itemId)
+            }
+        }
+        return clipboardItem(id: itemId)?.markdownLink ?? item.markdownLink
+    }
+
+    private func setLinkTitle(_ title: String, forItem itemId: ClipboardItem.ID) {
+        guard let index = tabs.firstIndex(where: { $0.kind == .clipboard }),
+              let itemIndex = tabs[index].clipboardItems.firstIndex(where: { $0.id == itemId }) else { return }
+        tabs[index].clipboardItems[itemIndex].copiedLinkTitle = title
+        saveWithDelay()
+    }
+
+    private func appendText(_ text: String, toTab tabId: UUID) {
         guard let index = tabs.firstIndex(where: { $0.id == tabId }) else { return }
         guard tabs[index].kind == .note else { return }
         let existing = tabs[index].content

@@ -172,12 +172,19 @@ struct ClipboardView: View {
             Button("Open Link") {
                 NSWorkspace.shared.open(url)
             }
-            if let markdownLink = item.markdownLink {
-                Button("Paste as Markdown Link") {
-                    _ = notesManager.pasteTextIntoLastApp(markdownLink)
+            Button("Paste as Markdown Link") {
+                Task {
+                    if let markdownLink = await notesManager.markdownLink(forItem: item.id) {
+                        _ = notesManager.pasteTextIntoLastApp(markdownLink)
+                    }
                 }
-                Button("Copy as Markdown Link") {
-                    notesManager.copyTextToPasteboard(markdownLink)
+            }
+            Button("Copy as Markdown Link") {
+                Task {
+                    if let markdownLink = await notesManager.markdownLink(forItem: item.id) {
+                        notesManager.copyTextToPasteboard(markdownLink)
+                        transformRegistry.show("Copied \(markdownLink)")
+                    }
                 }
             }
         }

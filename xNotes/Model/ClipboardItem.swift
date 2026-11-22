@@ -24,7 +24,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     /// Link and title the source app put on the clipboard (e.g. Safari's address bar or
     /// "Copy Link"); nil for plain text, even if it is a URL (see `linkURL`).
     let copiedLinkURL: String?
-    let copiedLinkTitle: String?
+    /// Also set later when the page title is fetched for a Markdown link.
+    var copiedLinkTitle: String?
 
     init(
         id: UUID = UUID(),
@@ -76,14 +77,14 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     /// What the list shows: the link title if there is one, otherwise the text.
     var displayText: String { linkTitle ?? text }
 
-    /// `[Title](url)` if there is a title, otherwise `<url>`.
+    /// `[Title](url)`; without a known title the domain stands in for it.
     var markdownLink: String? {
         guard let url = linkURL else { return nil }
         let address = url.absoluteString
             .replacingOccurrences(of: " ", with: "%20")
             .replacingOccurrences(of: "(", with: "%28")
             .replacingOccurrences(of: ")", with: "%29")
-        guard let title = linkTitle else { return "<\(address)>" }
+        let title = linkTitle ?? url.host ?? address
         let escapedTitle = title
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "[", with: "\\[")
