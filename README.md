@@ -3,24 +3,26 @@
 xNotes is a lightweight macOS menu bar notes app that keeps notes in colour-coded tabs, tracks a full clipboard history alongside them, and lets you cut repetitive typing with a built-in text expander. Define a short trigger, hint it with a snippet of any length — a signature, a standard reply, an address, a code block — and xNotes replaces the trigger with the full snippet the moment you type it, in whichever app you're working in.
 
 <p align="center">
-  <img src="./screenshot.png" width="600" alt="xNotes with colour-coded tabs and Markdown highlighting">
+  <img src="./screenshot.png" width="600" alt="xNotes with the tab sidebar and Markdown highlighting">
 </p>
 
 ## Features
 - Menu bar popover for fast access
-- Multiple tabs with titles and colors
+- Multiple tabs with titles and colors in a slim sidebar (⌘1–⌘9); a context line shows title, last edit, color and tab actions
+- Optional rainbow border around tabs that turns as auto-delete approaches
 - Lock tabs to protect them from deletion; unlocked tabs are deleted automatically after a configurable number of days without edits (deleting always asks first, including unlocking a tab that is already past that period)
 - Auto title from the first non-empty line
 - Clipboard history tab (always visible)
 - Pinned clipboard slots (max 9)
-- Source app name and icon for clipboard items
+- Source app name and icon for clipboard items; hover for formats, size and more
+- Clipboard keeps files, formatting (RTF, HTML) and links with titles; skips passwords marked as sensitive
 - Clipboard item transformations (case, JSON, URL, Base64, line tools, etc.), grouped in submenus
 - Extensible with your own transformations as JavaScript plugins — no rebuild needed
 - Filter field in the clipboard-only panel
 - Text expansion rules and quick inserts
 - Search across tab titles, note content and clipboard history
-- Export notes to text
-- Backup export/import (JSON)
+- Export notes to text and backup export/import (JSON) in Settings, file names dated YYYYMMDD
+- Menu bar right-click menu with the latest clipboard entries (count configurable)
 - Editor font, size, theme and line number settings
 - Light and dark mode
 - Optional "keep window open" pin
@@ -69,7 +71,7 @@ Alternatively, right-click the app in Finder and choose "Open".
 - In the clipboard-only panel, type to filter; Return pastes the first match into the last app
 
 <p align="center">
-  <img src="./clipboard.png" width="600" alt="Clipboard history with pinned items and the transform context menu">
+  <img src="./clipboard.png" width="600" alt="Clipboard history with pinned items, a link with its title and a copied file">
 </p>
 
 ### Clipboard Transform Plugins

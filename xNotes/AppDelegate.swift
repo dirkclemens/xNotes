@@ -66,6 +66,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             AppDelegate.sharedTextExpansionEngine?.start()
         }
 
+        if let position = DemoMode.openTabAtLaunch {
+            let tabs = notesManager.sidebarOrderedTabs
+            if position <= tabs.count {
+                notesManager.selectedTabId = tabs[position - 1].id
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self, let button = self.statusItem?.button else { return }
+                // Stay visible while another app is active (screenshots are taken from outside).
+                self.panel?.hidesOnDeactivate = false
+                self.showPanel(relativeTo: button)
+                self.removeDismissMonitors()
+                self.panel?.orderFrontRegardless()
+            }
+        }
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleClosePopover),
