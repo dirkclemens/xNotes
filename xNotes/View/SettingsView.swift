@@ -33,6 +33,7 @@ struct SettingsView: View {
     @AppStorage("textExpansionEnabled") private var textExpansionEnabled: Bool = false
     @AppStorage("tabAutoDeleteDays") private var tabAutoDeleteDays: Int = 7
     @AppStorage("tabRainbowBorder") private var tabRainbowBorder: Bool = true
+    @AppStorage(NotesManager.clipboardSaveSensitiveKey) private var clipboardSaveSensitive: Bool = false
     @AppStorage(AppDelegate.statusMenuClipboardCountKey) private var statusMenuClipboardCount: Int = AppDelegate.statusMenuClipboardCountDefault
 
     var body: some View {
@@ -127,6 +128,11 @@ struct SettingsView: View {
                     }
                 }
                 .help("Latest clipboard entries shown when you right-click the menu bar icon")
+
+                Toggle("Save Sensitive Entries", isOn: $clipboardSaveSensitive)
+                Text("Password managers mark copied passwords as sensitive. When off, xNotes doesn't record them. Entries marked as temporary or auto-generated are never recorded.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 Toggle("Paste as Plain Text", isOn: $pasteAsPlainText)
                 Toggle("Normalize Line Endings to LF", isOn: $pasteNormalizeLF)

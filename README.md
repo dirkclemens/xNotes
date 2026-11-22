@@ -60,6 +60,8 @@ Alternatively, right-click the app in Finder and choose "Open".
 - New clipboard entries are captured automatically (text only)
 - Duplicates are deduplicated; newest moves to top
 - Pinned items stay at the top and are not removable
+- Hover over an item to see its source app, time, copied formats and size
+- Passwords marked as sensitive by password managers are not recorded (Settings ▸ Clipboard ▸ Save Sensitive Entries); entries marked as temporary or auto-generated are never recorded ([nspasteboard.org](http://nspasteboard.org) convention)
 - Right-click an item for transformations and actions
 - In the clipboard-only panel, type to filter; Return pastes the first match into the last app
 

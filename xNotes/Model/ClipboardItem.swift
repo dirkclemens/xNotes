@@ -7,12 +7,15 @@ import Foundation
 
 struct ClipboardItem: Identifiable, Codable, Equatable {
     let id: UUID
-    let text: String
+    var text: String
     let originalText: String
     let date: Date
-    let pinnedSlot: Int?
+    var pinnedSlot: Int?
     let sourceAppName: String?
     let sourceAppBundleId: String?
+    /// Pasteboard types (UTIs) the source app offered when the item was copied,
+    /// in the source app's order. Empty for items captured by older versions.
+    let pasteboardTypes: [String]
 
     init(
         id: UUID = UUID(),
@@ -21,7 +24,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         date: Date = Date(),
         pinnedSlot: Int? = nil,
         sourceAppName: String? = nil,
-        sourceAppBundleId: String? = nil
+        sourceAppBundleId: String? = nil,
+        pasteboardTypes: [String] = []
     ) {
         self.id = id
         self.text = text
@@ -30,10 +34,16 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         self.pinnedSlot = pinnedSlot
         self.sourceAppName = sourceAppName
         self.sourceAppBundleId = sourceAppBundleId
+        self.pasteboardTypes = pasteboardTypes
+    }
+
+    /// The source app marked the entry as a password or other secret.
+    var isSensitive: Bool {
+        pasteboardTypes.contains(where: ClipboardFormats.concealedTypes.contains)
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, text, originalText, date, pinnedSlot, sourceAppName, sourceAppBundleId
+        case id, text, originalText, date, pinnedSlot, sourceAppName, sourceAppBundleId, pasteboardTypes
     }
 
     init(from decoder: Decoder) throws {
@@ -45,6 +55,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         pinnedSlot = try c.decodeIfPresent(Int.self, forKey: .pinnedSlot)
         sourceAppName = try c.decodeIfPresent(String.self, forKey: .sourceAppName)
         sourceAppBundleId = try c.decodeIfPresent(String.self, forKey: .sourceAppBundleId)
+        pasteboardTypes = try c.decodeIfPresent([String].self, forKey: .pasteboardTypes) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -56,5 +67,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         try c.encode(pinnedSlot, forKey: .pinnedSlot)
         try c.encode(sourceAppName, forKey: .sourceAppName)
         try c.encode(sourceAppBundleId, forKey: .sourceAppBundleId)
+        if !pasteboardTypes.isEmpty {
+            try c.encode(pasteboardTypes, forKey: .pasteboardTypes)
+        }
     }
 }
