@@ -269,11 +269,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     let displayTitle = firstLine.isEmpty ? "(empty)" : String(firstLine.prefix(60))
                     let menuItem = NSMenuItem(title: displayTitle, action: #selector(pasteClipboardMenuItem(_:)), keyEquivalent: "")
                     menuItem.target = self
-                    menuItem.representedObject = item.text
-                    menuItem.toolTip = item.text
+                    menuItem.representedObject = item.id
+                    menuItem.toolTip = item.isFileItem ? item.filePaths.joined(separator: "\n") : item.text
 
                     var icon: NSImage?
-                    if let bundleId = item.sourceAppBundleId,
+                    if let firstPath = item.filePaths.first {
+                        icon = NSWorkspace.shared.icon(forFile: firstPath)
+                    } else if let bundleId = item.sourceAppBundleId,
                        let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
                         icon = NSWorkspace.shared.icon(forFile: appURL.path)
                     }
@@ -336,7 +338,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func pasteClipboardMenuItem(_ sender: NSMenuItem) {
-        guard let text = sender.representedObject as? String, !text.isEmpty else { return }
-        _ = notesManager.pasteTextIntoLastApp(text)
+        guard let id = sender.representedObject as? ClipboardItem.ID,
+              let item = notesManager.clipboardItem(id: id) else { return }
+        _ = notesManager.pasteClipboardItemIntoLastApp(item)
     }
 }

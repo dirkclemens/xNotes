@@ -82,12 +82,12 @@ private struct ClipboardOnlyContent: View {
         let trimmed = filter.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return tab.clipboardItems }
         return tab.clipboardItems.filter {
-            $0.text.range(of: trimmed, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+            $0.searchableText.range(of: trimmed, options: [.caseInsensitive, .diacriticInsensitive]) != nil
         }
     }
 
     private func pasteFirstMatch() {
         guard let item = filteredItems.first else { return }
-        _ = notesManager.pasteTextIntoLastApp(item.text)
+        _ = notesManager.pasteClipboardItemIntoLastApp(item)
     }
 }

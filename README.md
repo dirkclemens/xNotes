@@ -57,7 +57,8 @@ Alternatively, right-click the app in Finder and choose "Open".
 </p>
 
 ### Clipboard
-- New clipboard entries are captured automatically (text only)
+- New clipboard entries are captured automatically (text and files)
+- Files copied in the Finder are kept as files: pasting puts the files back (e.g. into a Finder window or a mail), "Show in Finder" reveals them, "Append to Tab" adds their paths
 - Duplicates are deduplicated; newest moves to top
 - Pinned items stay at the top and are not removable
 - Hover over an item to see its source app, time, copied formats and size

@@ -16,6 +16,9 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     /// Pasteboard types (UTIs) the source app offered when the item was copied,
     /// in the source app's order. Empty for items captured by older versions.
     let pasteboardTypes: [String]
+    /// Paths of files copied in the Finder (or another app that copies files).
+    /// Empty for text entries. `text` then holds the file names, one per line.
+    let filePaths: [String]
 
     init(
         id: UUID = UUID(),
@@ -25,7 +28,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         pinnedSlot: Int? = nil,
         sourceAppName: String? = nil,
         sourceAppBundleId: String? = nil,
-        pasteboardTypes: [String] = []
+        pasteboardTypes: [String] = [],
+        filePaths: [String] = []
     ) {
         self.id = id
         self.text = text
@@ -35,6 +39,16 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         self.sourceAppName = sourceAppName
         self.sourceAppBundleId = sourceAppBundleId
         self.pasteboardTypes = pasteboardTypes
+        self.filePaths = filePaths
+    }
+
+    var isFileItem: Bool { !filePaths.isEmpty }
+
+    var fileURLs: [URL] { filePaths.map { URL(fileURLWithPath: $0) } }
+
+    /// Text that searches and filters match against; includes the full paths of files.
+    var searchableText: String {
+        isFileItem ? text + "\n" + filePaths.joined(separator: "\n") : text
     }
 
     /// The source app marked the entry as a password or other secret.
@@ -50,7 +64,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     var isSensitive: Bool { isMarkedConcealed || isFromPasswordApp }
 
     enum CodingKeys: String, CodingKey {
-        case id, text, originalText, date, pinnedSlot, sourceAppName, sourceAppBundleId, pasteboardTypes
+        case id, text, originalText, date, pinnedSlot, sourceAppName, sourceAppBundleId, pasteboardTypes, filePaths
     }
 
     init(from decoder: Decoder) throws {
@@ -63,6 +77,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         sourceAppName = try c.decodeIfPresent(String.self, forKey: .sourceAppName)
         sourceAppBundleId = try c.decodeIfPresent(String.self, forKey: .sourceAppBundleId)
         pasteboardTypes = try c.decodeIfPresent([String].self, forKey: .pasteboardTypes) ?? []
+        filePaths = try c.decodeIfPresent([String].self, forKey: .filePaths) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -76,6 +91,9 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         try c.encode(sourceAppBundleId, forKey: .sourceAppBundleId)
         if !pasteboardTypes.isEmpty {
             try c.encode(pasteboardTypes, forKey: .pasteboardTypes)
+        }
+        if !filePaths.isEmpty {
+            try c.encode(filePaths, forKey: .filePaths)
         }
     }
 }

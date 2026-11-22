@@ -60,6 +60,12 @@ struct ClipboardView: View {
                         .background(Circle().fill(Color.accentColor))
                         .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
                 }
+                if let firstPath = item.filePaths.first {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: firstPath))
+                        .resizable()
+                        .frame(width: 14, height: 14)
+                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+                }
                 if item.isSensitive {
                     Image(systemName: "key.fill")
                         .font(.system(size: 9))
@@ -91,7 +97,7 @@ struct ClipboardView: View {
         }, primaryAction: { selectedIds in
             guard let selectedId = selectedIds.first,
                   let item = items.first(where: { $0.id == selectedId }) else { return }
-            _ = notesManager.pasteTextIntoLastApp(item.text)
+            _ = notesManager.pasteClipboardItemIntoLastApp(item)
         })
         .onDeleteCommand {
             guard let id = selection else { return }
@@ -124,19 +130,24 @@ struct ClipboardView: View {
     @ViewBuilder
     private func itemMenu(for item: ClipboardItem) -> some View {
         Button("Paste into Last App") {
-            _ = notesManager.pasteTextIntoLastApp(item.text)
+            _ = notesManager.pasteClipboardItemIntoLastApp(item)
         }
         Button("Insert to Clipboard") {
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            let text: NSString = item.originalText as NSString
-            pasteboard.writeObjects([text])
+            notesManager.writeClipboardItemToPasteboard(item, text: item.originalText)
+        }
+        if item.isFileItem {
+            Button(item.filePaths.count == 1 ? "Show in Finder" : "Show Files in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting(item.fileURLs)
+            }
+            .disabled(!item.filePaths.contains { FileManager.default.fileExists(atPath: $0) })
         }
 
         Divider()
 
-        Button("Edit Item…") {
-            editItem = item
+        if !item.isFileItem {
+            Button("Edit Item…") {
+                editItem = item
+            }
         }
         Menu("Append to Tab") {
             if noteTabs.isEmpty {
@@ -160,9 +171,10 @@ struct ClipboardView: View {
             }
         }
 
-        Divider()
-
-        transformMenus(for: item)
+        if !item.isFileItem {
+            Divider()
+            transformMenus(for: item)
+        }
 
         Divider()
 
@@ -235,14 +247,45 @@ struct ClipboardView: View {
         if !formats.isEmpty {
             info.append("Formats: \(formats.joined(separator: ", "))")
         }
-        info.append("Size: \(sizeDescription(for: item.text))")
+        if item.isFileItem {
+            info.append(contentsOf: fileInfoLines(for: item))
+        } else {
+            info.append("Size: \(sizeDescription(for: item.text))")
+        }
         if item.text != item.originalText {
             info.append("Edited or transformed (original shown above)")
         }
         if let slot = item.pinnedSlot {
             info.append("Pinned to slot \(slot) (⌥\(slot))")
         }
-        return "\(item.originalText)\n────────────────────\n\(info.joined(separator: "\n"))"
+        let content = item.isFileItem ? item.filePaths.joined(separator: "\n") : item.originalText
+        return "\(content)\n────────────────────\n\(info.joined(separator: "\n"))"
+    }
+
+    /// Kind and size per file, or a note when it no longer exists.
+    private func fileInfoLines(for item: ClipboardItem) -> [String] {
+        let keys: Set<URLResourceKey> = [.localizedTypeDescriptionKey, .fileSizeKey, .isDirectoryKey]
+        var lines = ["\(item.filePaths.count) \(item.filePaths.count == 1 ? "file" : "files"):"]
+        var missing = 0
+        for url in item.fileURLs.prefix(10) {
+            guard let values = try? url.resourceValues(forKeys: keys) else {
+                missing += 1
+                lines.append("  \(url.lastPathComponent) – no longer exists")
+                continue
+            }
+            var details = [values.localizedTypeDescription ?? (values.isDirectory == true ? "Folder" : "File")]
+            if values.isDirectory != true, let size = values.fileSize {
+                details.append(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
+            }
+            lines.append("  \(url.lastPathComponent) – \(details.joined(separator: ", "))")
+        }
+        if item.filePaths.count > 10 {
+            lines.append("  … and \(item.filePaths.count - 10) more")
+        }
+        if missing > 0 {
+            lines.append("⚠︎ Missing files can't be pasted")
+        }
+        return lines
     }
 
     private func sizeDescription(for text: String) -> String {
