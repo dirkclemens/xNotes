@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Vertical tab rail: clipboard and text expansions on top, note tiles below,
 /// window and app controls at the bottom.
@@ -15,6 +16,8 @@ struct SidebarView: View {
     let onRequestToggleLock: (NoteTab) -> Void
 
     @AppStorage("tabRainbowBorder") private var showsRainbowBorder = true
+    /// Note tile being dragged to a new position.
+    @State private var draggedTabId: UUID?
 
     static let width: CGFloat = 56
 
@@ -45,6 +48,20 @@ struct SidebarView: View {
                             onToggleLock: { onRequestToggleLock(tab) },
                             onClose: canClose(tab) ? { onRequestClose(tab) } : nil
                         )
+                        .onDrag {
+                            draggedTabId = tab.id
+                            let provider = NSItemProvider()
+                            provider.registerDataRepresentation(forTypeIdentifier: UTType.sidebarTab.identifier, visibility: .ownProcess) { completion in
+                                completion(Data(tab.id.uuidString.utf8), nil)
+                                return nil
+                            }
+                            return provider
+                        }
+                        .onDrop(of: [.sidebarTab], delegate: TileReorderDropDelegate(
+                            targetId: tab.id,
+                            draggedTabId: $draggedTabId,
+                            notesManager: notesManager
+                        ))
                     }
 
                     Button(action: { notesManager.addTab() }) {
@@ -170,5 +187,33 @@ private struct SidebarIconButton: View {
         .focusable(false)
         .onHover { isHovered = $0 }
         .help(help)
+    }
+}
+
+private extension UTType {
+    /// Private drag type for sidebar tiles; not text, so tiles can't be dropped into the editor.
+    static let sidebarTab = UTType(importedAs: "de.adcore.xnotes.sidebar-tab")
+}
+
+/// Reorders the tiles live while one is dragged over another; the drop itself only ends the drag.
+private struct TileReorderDropDelegate: DropDelegate {
+    let targetId: UUID
+    @Binding var draggedTabId: UUID?
+    let notesManager: NotesManager
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedTabId, draggedTabId != targetId else { return }
+        withAnimation(.easeInOut(duration: 0.15)) {
+            notesManager.moveNoteTab(draggedTabId, to: targetId)
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedTabId = nil
+        return true
     }
 }
