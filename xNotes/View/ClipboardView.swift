@@ -364,7 +364,8 @@ struct ClipboardView: View {
                 .frame(maxWidth: 64, maxHeight: 36, alignment: .leading)
                 .clipShape(RoundedRectangle(cornerRadius: 3))
                 .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(Color.secondary.opacity(0.3), lineWidth: 0.5))
-                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+                // Text baseline slightly below the middle, so icon and text sit vertically centered.
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
         } else {
             Image(systemName: "photo")
                 .foregroundStyle(.secondary)

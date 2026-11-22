@@ -188,6 +188,11 @@ class NotesManager: ObservableObject {
         #if DEBUG
         if DemoMode.isEnabled {
             tabs = DemoData.tabs()
+            if let image = DemoData.sampleImageItem(store: imageStore, now: Date()),
+               let index = tabs.firstIndex(where: { $0.kind == .clipboard }) {
+                let position = min(4, tabs[index].clipboardItems.count)
+                tabs[index].clipboardItems.insert(image, at: position)
+            }
             return
         }
         #endif
