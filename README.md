@@ -72,7 +72,7 @@ Alternatively, right-click the app in Finder and choose "Open".
 - In the clipboard-only panel, type to filter; Return pastes the first match into the last app
 
 <p align="center">
-  <img src="./clipboard.png" width="600" alt="Clipboard history with pinned items, a link with its title and a copied file">
+  <img src="./clipboard.png" width="600" alt="Clipboard history with pinned items, a link with its title, a copied file and an image">
 </p>
 
 ### Clipboard Transform Plugins

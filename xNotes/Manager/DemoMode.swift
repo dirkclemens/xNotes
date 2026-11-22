@@ -18,7 +18,7 @@
 //  Release builds ignore the flag.
 //
 
-import Foundation
+import AppKit
 
 enum DemoMode {
     static var isEnabled: Bool {
@@ -86,6 +86,51 @@ enum DemoData {
                 lastEditedAt: now
             ),
         ]
+    }
+
+    /// A drawn sample chart as clipboard image, stored in the demo image folder.
+    static func sampleImageItem(store: ClipboardImageStore, now: Date) -> ClipboardItem? {
+        let id = UUID(uuidString: "D3A0C0DE-0000-4000-8000-000000000001")!
+        guard let png = sampleChartPNG(),
+              let processed = ClipboardImageStore.process(png),
+              store.save(processed, for: id) else { return nil }
+        return ClipboardItem(
+            id: id,
+            text: "Image \(processed.info.width) × \(processed.info.height)",
+            date: now.addingTimeInterval(-8 * 60),
+            sourceAppName: "Preview",
+            sourceAppBundleId: "com.apple.Preview",
+            pasteboardTypes: ["public.png"],
+            imageInfo: processed.info
+        )
+    }
+
+    private static func sampleChartPNG() -> Data? {
+        let width = 1200, height = 720
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8,
+            samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0
+        ) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        let bounds = NSRect(x: 0, y: 0, width: width, height: height)
+        NSGradient(starting: NSColor(calibratedRed: 0.20, green: 0.45, blue: 0.95, alpha: 1),
+                   ending: NSColor(calibratedRed: 0.55, green: 0.30, blue: 0.90, alpha: 1))?
+            .draw(in: bounds, angle: 35)
+        let values: [CGFloat] = [0.35, 0.55, 0.45, 0.70, 0.62, 0.88]
+        let barWidth: CGFloat = 110, gap: CGFloat = 60, baseY: CGFloat = 90
+        for (index, value) in values.enumerated() {
+            let x = 120 + CGFloat(index) * (barWidth + gap)
+            NSColor.white.withAlphaComponent(0.85).setFill()
+            NSBezierPath(roundedRect: NSRect(x: x, y: baseY, width: barWidth, height: value * 480), xRadius: 14, yRadius: 14).fill()
+        }
+        NSString(string: "Q3 Revenue").draw(at: NSPoint(x: 120, y: 620), withAttributes: [
+            .font: NSFont.systemFont(ofSize: 56, weight: .bold),
+            .foregroundColor: NSColor.white,
+        ])
+        NSGraphicsContext.restoreGraphicsState()
+        return rep.representation(using: .png, properties: [:])
     }
 
     static let textExpansionRules: [TextExpansionRule] = [
