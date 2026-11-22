@@ -61,6 +61,14 @@ class NotesManager: ObservableObject {
         guard index >= 0, index < tabs.count else { return }
         selectedTabId = tabs[index].id
     }
+
+    /// Tabs in the order the sidebar shows them: clipboard and text expansions first, then the notes.
+    /// ⌘1…⌘9 follow this order so the shortcuts match what the user sees.
+    var sidebarOrderedTabs: [NoteTab] {
+        tabs.filter { $0.kind == .clipboard }
+            + tabs.filter { $0.kind == .expansions }
+            + tabs.filter { $0.kind == .note }
+    }
     
     func removeTab(_ tab: NoteTab) {
         guard tab.kind == .note else { return }
@@ -106,6 +114,23 @@ class NotesManager: ObservableObject {
             tabs[index].isLocked = isLocked
             saveWithDelay()
         }
+    }
+
+    /// Unlocks a tab and restarts its auto-delete countdown, so a tab that was locked
+    /// past the auto-delete period isn't removed right after unlocking.
+    func unlockRestartingAutoDelete(for tabId: UUID) {
+        guard let index = tabs.firstIndex(where: { $0.id == tabId }),
+              tabs[index].kind == .note else { return }
+        tabs[index].isLocked = false
+        tabs[index].lastEditedAt = Date()
+        saveWithDelay()
+    }
+
+    /// True if the tab is older than the auto-delete period, i.e. auto-delete would
+    /// remove it as soon as it is (or once it gets) unlocked.
+    func isPastAutoDeleteDeadline(_ tab: NoteTab, now: Date = Date()) -> Bool {
+        guard tab.kind == .note else { return false }
+        return tab.lastEditedAt < autoDeleteCutoff(now: now)
     }
 
     func isClipboardTabSelected() -> Bool {
@@ -266,9 +291,8 @@ class NotesManager: ObservableObject {
     }
 
     private func pruneExpiredTabs(persist: Bool = true, now: Date = Date()) {
-        let days = autoDeleteDays()
-        guard days > 0 else { return }
-        let cutoff = now.addingTimeInterval(-TimeInterval(days * 24 * 60 * 60))
+        guard autoDeleteDays() > 0 else { return }
+        let cutoff = autoDeleteCutoff(now: now)
         let expiredIds = Set<UUID>(
             tabs.compactMap { tab in
                 guard tab.kind == .note, !tab.isLocked else { return nil }
@@ -283,6 +307,10 @@ class NotesManager: ObservableObject {
         if persist {
             saveWithDelay()
         }
+    }
+
+    private func autoDeleteCutoff(now: Date) -> Date {
+        now.addingTimeInterval(-TimeInterval(autoDeleteDays() * 24 * 60 * 60))
     }
 
     func autoDeleteDays() -> Int {

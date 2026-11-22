@@ -29,8 +29,16 @@ private struct ClipboardOnlyContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Same header as the clipboard in the full panel; the magnifier focuses the filter.
+            TabContextBar(
+                tab: tab,
+                onSearch: { isFilterFocused.wrappedValue = true },
+                onRequestClose: { _ in },
+                onRequestToggleLock: { _ in }
+            )
+
             HStack(spacing: 8) {
-                Image(systemName: "line.3.horizontal.decrease.circle")
+                Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
                 TextField("Filter clipboard...", text: $filter)
                     .textFieldStyle(.roundedBorder)
@@ -66,6 +74,8 @@ private struct ClipboardOnlyContent: View {
             ClipboardView(items: filteredItems)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        // The panel itself is transparent; without this the desktop shows through the filter row.
+        .background(.windowBackground)
     }
 
     private var filteredItems: [ClipboardItem] {

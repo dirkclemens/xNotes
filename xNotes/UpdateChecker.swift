@@ -48,7 +48,9 @@ enum UpdateChecker {
     }
 }
 
-private struct UpdateCheckResponse: Decodable {
+/// `nonisolated` so its `Decodable` conformance can be used in URLSession's
+/// background completion handler (the target defaults to MainActor isolation).
+nonisolated private struct UpdateCheckResponse: Decodable {
     let app: String?
     let currentVersion: String?
     let latestVersion: String?

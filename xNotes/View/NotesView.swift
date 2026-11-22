@@ -16,6 +16,22 @@ struct NotesView: View {
     @State private var searchResults: [SearchResult] = []
     @State private var searchFocusRequest = 0
     @State private var activeSearchResult: SearchResult?
+    /// Tab action waiting for the "Delete this tab?" confirmation.
+    @State private var pendingConfirmation: TabConfirmation?
+
+    private enum TabConfirmation {
+        /// The user chose "Delete Tab…".
+        case delete(NoteTab)
+        /// The user unlocks a tab that is older than the auto-delete period,
+        /// so auto-delete would remove it right away.
+        case unlockExpired(NoteTab)
+
+        var tab: NoteTab {
+            switch self {
+            case .delete(let tab), .unlockExpired(let tab): return tab
+            }
+        }
+    }
 
     private var keepWindowOpen: Binding<Bool> { $windowSettings.keepWindowOpen }
 
@@ -29,36 +45,69 @@ struct NotesView: View {
         ZStack {
             if page == .main {
                 
-                VStack(spacing: 0) {
-                    TabBarView()
-                    
-                    if isSearchVisible {
-                        SearchBarView(
-                            query: $searchQuery,
-                            resultCount: searchResults.count,
-                            currentIndex: currentResultIndex,
-                            currentTabTitle: activeSearchResult?.tabTitle,
-                            focusRequest: searchFocusRequest,
-                            onPrevious: { stepSearch(previous: true) },
-                            onNext: { stepSearch(previous: false) },
-                            onClose: closeSearch
-                        )
+                HStack(spacing: 0) {
+                    SidebarView(
+                        keepWindowOpen: keepWindowOpen,
+                        onOpenSettings: goToNextPage,
+                        onRequestClose: { pendingConfirmation = .delete($0) },
+                        onRequestToggleLock: toggleLock
+                    )
+
+                    Divider()
+
+                    VStack(spacing: 0) {
+                        if let tab = selectedTab {
+                            TabContextBar(
+                                tab: tab,
+                                onSearch: openSearch,
+                                onRequestClose: { pendingConfirmation = .delete($0) },
+                                onRequestToggleLock: toggleLock
+                            )
+                        }
+
+                        if isSearchVisible {
+                            SearchBarView(
+                                query: $searchQuery,
+                                resultCount: searchResults.count,
+                                currentIndex: currentResultIndex,
+                                currentTabTitle: activeSearchResult?.tabTitle,
+                                focusRequest: searchFocusRequest,
+                                onPrevious: { stepSearch(previous: true) },
+                                onNext: { stepSearch(previous: false) },
+                                onClose: closeSearch
+                            )
+                        }
+
+                        Divider()
+
+                        if let tab = selectedTab {
+                            SelectedTabContentView(
+                                tab: tab,
+                                autoFocusEditor: !isSearchVisible,
+                                searchHighlight: activeSearchResult?.tabId == tab.id ? activeSearchResult : nil
+                            )
+                            .id(tab.id)
+                        } else {
+                            Spacer()
+                        }
                     }
-                    
-                    Divider().frame(height: 1).background(.windowBackground)
-                    
-                    if let selectedId = notesManager.selectedTabId,
-                       let tab = notesManager.tabs.first(where: { $0.id == selectedId }) {
-                        SelectedTabContentView(
-                            tab: tab,
-                            autoFocusEditor: !isSearchVisible,
-                            searchHighlight: activeSearchResult?.tabId == tab.id ? activeSearchResult : nil
-                        )
-                        .id(tab.id)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .alert("Delete this tab?", isPresented: Binding(
+                    get: { pendingConfirmation != nil },
+                    set: { if !$0 { pendingConfirmation = nil } }
+                ), presenting: pendingConfirmation) { confirmation in
+                    switch confirmation {
+                    case .delete(let tab):
+                        Button("Cancel", role: .cancel) {}
+                        Button("Delete", role: .destructive) { notesManager.removeTab(tab) }
+                    case .unlockExpired(let tab):
+                        Button("Keep Locked", role: .cancel) {}
+                        Button("Unlock and Keep") { notesManager.unlockRestartingAutoDelete(for: tab.id) }
+                        Button("Delete", role: .destructive) { notesManager.removeTab(tab) }
                     }
-                    
-                    Divider().frame(height: 1).background(.windowBackground)
-                    footerButtons.padding(12)
+                } message: { confirmation in
+                    Text(confirmationMessage(for: confirmation))
                 }
 
                 .transition(.move(edge: .top).combined(with: .opacity))
@@ -151,6 +200,31 @@ struct NotesView: View {
         .font(.caption)
     }
     
+    /// Locks right away; unlocking asks first when auto-delete would remove the tab immediately.
+    private func toggleLock(_ tab: NoteTab) {
+        if tab.isLocked, notesManager.isPastAutoDeleteDeadline(tab) {
+            pendingConfirmation = .unlockExpired(tab)
+        } else {
+            notesManager.updateLocked(for: tab.id, isLocked: !tab.isLocked)
+        }
+    }
+
+    private func confirmationMessage(for confirmation: TabConfirmation) -> String {
+        let title = notesManager.displayTitle(for: confirmation.tab)
+        switch confirmation {
+        case .delete:
+            return "\"\(title)\" and its content will be deleted permanently. This cannot be undone."
+        case .unlockExpired(let tab):
+            let days = max(1, Int(Date().timeIntervalSince(tab.lastEditedAt) / (24 * 60 * 60)))
+            return "\"\(title)\" was last edited \(days) days ago, longer than the auto-delete period of \(notesManager.autoDeleteDays()) days. Unlocking it deletes it and its content permanently. Choose \"Unlock and Keep\" to restart the countdown instead."
+        }
+    }
+
+    private var selectedTab: NoteTab? {
+        guard let selectedId = notesManager.selectedTabId else { return nil }
+        return notesManager.tabs.first(where: { $0.id == selectedId })
+    }
+
     private func goToPreviousPage() {
         guard let previous = Page(rawValue: page.rawValue - 1) else { return }
         withAnimation(.easeInOut(duration: 0.2)) {
