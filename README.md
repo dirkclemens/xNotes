@@ -8,7 +8,7 @@ xNotes is a lightweight macOS menu bar notes app that keeps notes in colour-code
 
 ## Features
 - Menu bar popover for fast access
-- Multiple tabs with titles and colors in a slim sidebar (⌘1–⌘9); a context line shows title, last edit, color and tab actions
+- Multiple tabs with titles and colors in a slim sidebar (⌘1–⌘9, drag tiles to reorder); a context line shows title, last edit, color and tab actions
 - Optional rainbow border around tabs that turns as auto-delete approaches
 - Lock tabs to protect them from deletion; unlocked tabs are deleted automatically after a configurable number of days without edits (deleting always asks first, including unlocking a tab that is already past that period)
 - Auto title from the first non-empty line

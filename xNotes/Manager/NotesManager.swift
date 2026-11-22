@@ -70,6 +70,22 @@ class NotesManager: ObservableObject {
         selectedTabId = tabs[index].id
     }
 
+    /// Moves a note tab to the given position among the note tabs (sidebar dragging).
+    /// Clipboard and text expansions keep their places.
+    func moveNoteTab(_ tabId: UUID, toNotePosition position: Int) {
+        let noteIndices = tabs.indices.filter { tabs[$0].kind == .note }
+        guard noteIndices.indices.contains(position),
+              let from = tabs.firstIndex(where: { $0.id == tabId }),
+              tabs[from].kind == .note else { return }
+        // Note tabs are contiguous (clipboard first, expansions last), so removing and
+        // inserting at the target's index lands the tab at that note position.
+        let to = noteIndices[position]
+        guard from != to else { return }
+        let tab = tabs.remove(at: from)
+        tabs.insert(tab, at: to)
+        saveWithDelay()
+    }
+
     /// Tabs in the order the sidebar shows them: clipboard and text expansions first, then the notes.
     /// ⌘1…⌘9 follow this order so the shortcuts match what the user sees.
     var sidebarOrderedTabs: [NoteTab] {

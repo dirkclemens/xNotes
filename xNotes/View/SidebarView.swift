@@ -15,6 +15,13 @@ struct SidebarView: View {
     let onRequestToggleLock: (NoteTab) -> Void
 
     @AppStorage("tabRainbowBorder") private var showsRainbowBorder = true
+    /// Note tile being dragged to a new position, where it started and how far it moved.
+    @State private var draggedTabId: UUID?
+    @State private var dragStartPosition = 0
+    @State private var dragTranslation: CGFloat = 0
+
+    /// Distance between two tiles (tile height plus spacing).
+    private static let tileStep: CGFloat = SidebarTile.size + 10
 
     static let width: CGFloat = 56
 
@@ -45,6 +52,11 @@ struct SidebarView: View {
                             onToggleLock: { onRequestToggleLock(tab) },
                             onClose: canClose(tab) ? { onRequestClose(tab) } : nil
                         )
+                        .offset(y: dragOffset(for: tab))
+                        .zIndex(draggedTabId == tab.id ? 1 : 0)
+                        .scaleEffect(draggedTabId == tab.id ? 1.08 : 1)
+                        .shadow(color: .black.opacity(draggedTabId == tab.id ? 0.25 : 0), radius: 4, y: 2)
+                        .simultaneousGesture(reorderGesture(for: tab))
                     }
 
                     Button(action: { notesManager.addTab() }) {
@@ -94,6 +106,40 @@ struct SidebarView: View {
 
     private var noteTabs: [NoteTab] {
         notesManager.sidebarOrderedTabs.filter { $0.kind == .note }
+    }
+
+    /// Dragging a tile up or down moves it; the other tiles make room as it passes them.
+    private func reorderGesture(for tab: NoteTab) -> some Gesture {
+        DragGesture(minimumDistance: 4, coordinateSpace: .global)
+            .onChanged { value in
+                if draggedTabId != tab.id {
+                    draggedTabId = tab.id
+                    dragStartPosition = noteTabs.firstIndex(where: { $0.id == tab.id }) ?? 0
+                }
+                dragTranslation = value.translation.height
+                let target = min(max(dragStartPosition + Int((dragTranslation / Self.tileStep).rounded()), 0), noteTabs.count - 1)
+                if target != currentPosition(of: tab) {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        notesManager.moveNoteTab(tab.id, toNotePosition: target)
+                    }
+                }
+            }
+            .onEnded { _ in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    draggedTabId = nil
+                    dragTranslation = 0
+                }
+            }
+    }
+
+    /// Keeps the dragged tile under the mouse although its slot in the list changes.
+    private func dragOffset(for tab: NoteTab) -> CGFloat {
+        guard draggedTabId == tab.id, let position = currentPosition(of: tab) else { return 0 }
+        return dragTranslation - CGFloat(position - dragStartPosition) * Self.tileStep
+    }
+
+    private func currentPosition(of tab: NoteTab) -> Int? {
+        noteTabs.firstIndex(where: { $0.id == tab.id })
     }
 
     private func canClose(_ tab: NoteTab) -> Bool {
@@ -172,3 +218,4 @@ private struct SidebarIconButton: View {
         .help(help)
     }
 }
+
