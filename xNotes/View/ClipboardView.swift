@@ -15,6 +15,7 @@ struct ClipboardView: View {
     @State private var selection: ClipboardItem.ID?
     @State private var pendingSelection: ClipboardItem.ID?
     @State private var editItem: ClipboardItem?
+    @AppStorage("pasteAsPlainText") private var pasteAsPlainText = false
     /// Row under the mouse. Its tooltip is rebuilt on hover so file checks are current.
     @State private var hoveredItemId: ClipboardItem.ID?
     @AppStorage("clipboardLineLimit") private var clipboardLineLimit: Int = 4
@@ -66,6 +67,12 @@ struct ClipboardView: View {
                     Image(nsImage: NSWorkspace.shared.icon(forFile: firstPath))
                         .resizable()
                         .frame(width: 14, height: 14)
+                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+                }
+                if item.canPasteRichText {
+                    Image(systemName: "textformat")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
                         .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
                 }
                 if item.isSensitive {
@@ -140,6 +147,17 @@ struct ClipboardView: View {
     private func itemMenu(for item: ClipboardItem) -> some View {
         Button("Paste into Last App") {
             _ = notesManager.pasteClipboardItemIntoLastApp(item)
+        }
+        if item.canPasteRichText {
+            if pasteAsPlainText {
+                Button("Paste with Formatting") {
+                    _ = notesManager.pasteClipboardItemIntoLastApp(item, asPlainText: false)
+                }
+            } else {
+                Button("Paste as Plain Text") {
+                    _ = notesManager.pasteClipboardItemIntoLastApp(item, asPlainText: true)
+                }
+            }
         }
         Button("Insert to Clipboard") {
             notesManager.writeClipboardItemToPasteboard(item, text: item.originalText)
@@ -265,6 +283,9 @@ struct ClipboardView: View {
             }
         } else {
             info.append("Size: \(sizeDescription(for: item.text))")
+            if let formatting = formattingInfo(for: item) {
+                info.append(formatting)
+            }
         }
         if item.text != item.originalText {
             info.append("Edited or transformed (original shown above)")
@@ -274,6 +295,28 @@ struct ClipboardView: View {
         }
         let content = item.isFileItem ? item.filePaths.joined(separator: "\n") : item.originalText
         return "\(content)\n────────────────────\n\(info.joined(separator: "\n"))"
+    }
+
+    /// Which formatted versions are kept and whether a paste uses them.
+    private func formattingInfo(for item: ClipboardItem) -> String? {
+        guard !item.richTextFormats.isEmpty else { return nil }
+        let formats = item.richTextFormats.map { format -> String in
+            // File sizes only for the row under the mouse (disk access).
+            guard hoveredItemId == item.id,
+                  let bytes = notesManager.richTextStore.byteCount(format: format, for: item.id) else {
+                return format.displayName
+            }
+            return "\(format.displayName) \(ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file))"
+        }.joined(separator: ", ")
+        let usage: String
+        if !item.canPasteRichText {
+            usage = "not used, the text was edited"
+        } else if pasteAsPlainText {
+            usage = "Paste as Plain Text is on"
+        } else {
+            usage = "pastes with formatting"
+        }
+        return "Formatting: \(formats) – \(usage)"
     }
 
     /// Kind and size per file, or a note when it no longer exists.

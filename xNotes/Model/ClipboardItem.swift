@@ -19,6 +19,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     /// Paths of files copied in the Finder (or another app that copies files).
     /// Empty for text entries. `text` then holds the file names, one per line.
     let filePaths: [String]
+    /// Formatted versions kept for this entry (stored by `ClipboardRichTextStore`).
+    let richTextFormats: [ClipboardRichTextStore.Format]
 
     init(
         id: UUID = UUID(),
@@ -29,7 +31,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         sourceAppName: String? = nil,
         sourceAppBundleId: String? = nil,
         pasteboardTypes: [String] = [],
-        filePaths: [String] = []
+        filePaths: [String] = [],
+        richTextFormats: [ClipboardRichTextStore.Format] = []
     ) {
         self.id = id
         self.text = text
@@ -40,7 +43,12 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         self.sourceAppBundleId = sourceAppBundleId
         self.pasteboardTypes = pasteboardTypes
         self.filePaths = filePaths
+        self.richTextFormats = richTextFormats
     }
+
+    /// Formatting is only valid for the text as copied; edited or transformed
+    /// entries are pasted as plain text.
+    var canPasteRichText: Bool { !richTextFormats.isEmpty && text == originalText }
 
     var isFileItem: Bool { !filePaths.isEmpty }
 
@@ -64,7 +72,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     var isSensitive: Bool { isMarkedConcealed || isFromPasswordApp }
 
     enum CodingKeys: String, CodingKey {
-        case id, text, originalText, date, pinnedSlot, sourceAppName, sourceAppBundleId, pasteboardTypes, filePaths
+        case id, text, originalText, date, pinnedSlot, sourceAppName, sourceAppBundleId, pasteboardTypes, filePaths, richTextFormats
     }
 
     init(from decoder: Decoder) throws {
@@ -78,6 +86,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         sourceAppBundleId = try c.decodeIfPresent(String.self, forKey: .sourceAppBundleId)
         pasteboardTypes = try c.decodeIfPresent([String].self, forKey: .pasteboardTypes) ?? []
         filePaths = try c.decodeIfPresent([String].self, forKey: .filePaths) ?? []
+        richTextFormats = try c.decodeIfPresent([ClipboardRichTextStore.Format].self, forKey: .richTextFormats) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -94,6 +103,9 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         }
         if !filePaths.isEmpty {
             try c.encode(filePaths, forKey: .filePaths)
+        }
+        if !richTextFormats.isEmpty {
+            try c.encode(richTextFormats, forKey: .richTextFormats)
         }
     }
 }

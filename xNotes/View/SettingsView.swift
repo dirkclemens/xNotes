@@ -135,6 +135,9 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
 
                 Toggle("Paste as Plain Text", isOn: $pasteAsPlainText)
+                Text("When off, entries copied with formatting (RTF, HTML) are pasted with it. Edited or transformed entries are always pasted as plain text.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Toggle("Normalize Line Endings to LF", isOn: $pasteNormalizeLF)
                     .disabled(!pasteAsPlainText)
                 Toggle("Trim Trailing Whitespace", isOn: $pasteTrimTrailingWhitespace)

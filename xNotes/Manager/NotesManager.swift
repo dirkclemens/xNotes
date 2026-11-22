@@ -17,6 +17,9 @@ class NotesManager: ObservableObject {
     private var saveTask: Task<Void, Never>?
     private let saveDelay: TimeInterval = 1.0
     private let storageKey = "savedNotes"
+    let richTextStore = ClipboardRichTextStore(
+        folderName: DemoMode.isEnabled ? "ClipboardRichText-Demo" : "ClipboardRichText"
+    )
     private lazy var tabsStore = TabsFileStore(
         legacyDefaultsKey: storageKey,
         fileName: DemoMode.isEnabled ? "tabs-demo.json" : "tabs.json"
@@ -157,6 +160,13 @@ class NotesManager: ObservableObject {
     
     private func saveTabs() {
         tabsStore.save(tabs)
+        removeUnusedRichText()
+    }
+
+    /// Deletes formatted versions of clipboard entries that no longer exist.
+    private func removeUnusedRichText() {
+        guard let clipboardTab = tabs.first(where: { $0.kind == .clipboard }) else { return }
+        richTextStore.removeAll(except: Set(clipboardTab.clipboardItems.map(\.id)))
     }
 
     /// Writes pending changes synchronously, e.g. when the app is about to quit.
@@ -242,6 +252,13 @@ class NotesManager: ObservableObject {
     }
 
     func exportBackupData() throws -> Data {
+        let clipboardItems = tabs.first(where: { $0.kind == .clipboard })?.clipboardItems ?? []
+        let richText = clipboardItems.flatMap { item in
+            item.richTextFormats.compactMap { format in
+                richTextStore.data(format: format, for: item.id)
+                    .map { ClipboardRichTextEntry(itemId: item.id, format: format, data: $0) }
+            }
+        }
         let codableTabs = tabs.map { tab in
             NoteTab(
                 id: tab.id,
@@ -258,13 +275,17 @@ class NotesManager: ObservableObject {
             schemaVersion: 1,
             exportedAt: Date(),
             selectedTabId: selectedTabId,
-            tabs: codableTabs
+            tabs: codableTabs,
+            clipboardRichText: richText
         )
         return try JSONEncoder().encode(payload)
     }
 
     func importBackupData(_ data: Data) throws {
         let payload = try JSONDecoder().decode(AppBackup.self, from: data)
+        for entry in payload.clipboardRichText ?? [] {
+            richTextStore.save(entry.data, format: entry.format, for: entry.itemId)
+        }
         tabs = payload.tabs.map {
             NoteTab(
                 id: $0.id,
@@ -401,7 +422,12 @@ class NotesManager: ObservableObject {
             return
         }
         lastClipboardString = trimmed
-        appendClipboardItem(trimmed, sourceApp: sourceApp, pasteboardTypes: types)
+        appendClipboardItem(
+            trimmed,
+            sourceApp: sourceApp,
+            pasteboardTypes: types,
+            richText: ClipboardRichTextStore.formats(on: pasteboard)
+        )
     }
 
     /// Follows the nspasteboard.org markers: transient and auto-generated content is
@@ -422,7 +448,8 @@ class NotesManager: ObservableObject {
         _ text: String,
         sourceApp: NSRunningApplication?,
         pasteboardTypes: [String],
-        filePaths: [String] = []
+        filePaths: [String] = [],
+        richText: [ClipboardRichTextStore.Format: Data] = [:]
     ) {
         guard let index = tabs.firstIndex(where: { $0.kind == .clipboard }) else { return }
         var items = tabs[index].clipboardItems
@@ -441,10 +468,14 @@ class NotesManager: ObservableObject {
                 sourceAppName: sourceApp?.localizedName,
                 sourceAppBundleId: sourceApp?.bundleIdentifier,
                 pasteboardTypes: pasteboardTypes,
-                filePaths: filePaths
+                filePaths: filePaths,
+                richTextFormats: ClipboardRichTextStore.Format.allCases.filter { richText[$0] != nil }
             ),
             at: 0
         )
+        for (format, data) in richText {
+            richTextStore.save(data, format: format, for: items[0].id)
+        }
 
         items = orderedClipboardItems(items)
         items = trimClipboardItems(items)
@@ -586,6 +617,14 @@ class NotesManager: ObservableObject {
         } else {
             let value = text ?? item.text
             pasteboard.setString(value, forType: .string)
+            // The formatted versions belong to the text as copied.
+            if value == item.originalText {
+                for format in item.richTextFormats {
+                    if let data = richTextStore.data(format: format, for: item.id) {
+                        pasteboard.setData(data, forType: format.pasteboardType)
+                    }
+                }
+            }
             lastClipboardString = value
         }
         return true
@@ -623,9 +662,13 @@ class NotesManager: ObservableObject {
         )
     }
 
-    /// Pastes the item into the last active app, as files or as (normalized) text.
-    func pasteClipboardItemIntoLastApp(_ item: ClipboardItem) -> Bool {
-        guard item.isFileItem else { return pasteTextIntoLastApp(item.text) }
+    /// Pastes the item into the last active app: files as files; text with its formatting
+    /// unless "Paste as Plain Text" is on (`asPlainText` overrides the setting).
+    func pasteClipboardItemIntoLastApp(_ item: ClipboardItem, asPlainText: Bool? = nil) -> Bool {
+        if !item.isFileItem {
+            let plain = asPlainText ?? UserDefaults.standard.bool(forKey: pasteAsPlainTextKey)
+            guard !plain, item.canPasteRichText else { return pasteTextIntoLastApp(item.text) }
+        }
         guard ensureAccessibilityPermission() else { return false }
         guard writeClipboardItemToPasteboard(item) else { return false }
         return sendPasteToLastApp()
