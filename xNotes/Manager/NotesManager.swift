@@ -426,7 +426,8 @@ class NotesManager: ObservableObject {
             trimmed,
             sourceApp: sourceApp,
             pasteboardTypes: types,
-            richText: ClipboardRichTextStore.formats(on: pasteboard)
+            richText: ClipboardRichTextStore.formats(on: pasteboard),
+            link: ClipboardFormats.copiedLink(on: pasteboard)
         )
     }
 
@@ -449,7 +450,8 @@ class NotesManager: ObservableObject {
         sourceApp: NSRunningApplication?,
         pasteboardTypes: [String],
         filePaths: [String] = [],
-        richText: [ClipboardRichTextStore.Format: Data] = [:]
+        richText: [ClipboardRichTextStore.Format: Data] = [:],
+        link: (url: String, title: String?)? = nil
     ) {
         guard let index = tabs.firstIndex(where: { $0.kind == .clipboard }) else { return }
         var items = tabs[index].clipboardItems
@@ -469,7 +471,9 @@ class NotesManager: ObservableObject {
                 sourceAppBundleId: sourceApp?.bundleIdentifier,
                 pasteboardTypes: pasteboardTypes,
                 filePaths: filePaths,
-                richTextFormats: ClipboardRichTextStore.Format.allCases.filter { richText[$0] != nil }
+                richTextFormats: ClipboardRichTextStore.Format.allCases.filter { richText[$0] != nil },
+                copiedLinkURL: link?.url,
+                copiedLinkTitle: link?.title
             ),
             at: 0
         )
@@ -495,8 +499,15 @@ class NotesManager: ObservableObject {
 
     func appendClipboardItemToTab(itemId: ClipboardItem.ID, tabId: UUID) {
         guard let item = clipboardItem(id: itemId) else { return }
-        // Files go into the note as their full paths.
-        let text = item.isFileItem ? item.filePaths.joined(separator: "\n") : item.text
+        // Files go into the note as their full paths, links with a title as Markdown links.
+        let text: String
+        if item.isFileItem {
+            text = item.filePaths.joined(separator: "\n")
+        } else if item.linkTitle != nil, let markdownLink = item.markdownLink {
+            text = markdownLink
+        } else {
+            text = item.text
+        }
         guard let index = tabs.firstIndex(where: { $0.id == tabId }) else { return }
         guard tabs[index].kind == .note else { return }
         let existing = tabs[index].content
@@ -617,11 +628,17 @@ class NotesManager: ObservableObject {
         } else {
             let value = text ?? item.text
             pasteboard.setString(value, forType: .string)
-            // The formatted versions belong to the text as copied.
+            // The formatted versions and the link belong to the text as copied.
             if value == item.originalText {
                 for format in item.richTextFormats {
                     if let data = richTextStore.data(format: format, for: item.id) {
                         pasteboard.setData(data, forType: format.pasteboardType)
+                    }
+                }
+                if let url = item.linkURL {
+                    pasteboard.setString(url.absoluteString, forType: .URL)
+                    if let title = item.linkTitle {
+                        pasteboard.setString(title, forType: ClipboardFormats.urlNameType)
                     }
                 }
             }
@@ -667,11 +684,21 @@ class NotesManager: ObservableObject {
     func pasteClipboardItemIntoLastApp(_ item: ClipboardItem, asPlainText: Bool? = nil) -> Bool {
         if !item.isFileItem {
             let plain = asPlainText ?? UserDefaults.standard.bool(forKey: pasteAsPlainTextKey)
-            guard !plain, item.canPasteRichText else { return pasteTextIntoLastApp(item.text) }
+            // Links go on the clipboard as links too, so Mail, Notes etc. can show the title.
+            guard !plain, item.canPasteRichText || (item.isLink && item.text == item.originalText) else {
+                return pasteTextIntoLastApp(item.text)
+            }
         }
         guard ensureAccessibilityPermission() else { return false }
         guard writeClipboardItemToPasteboard(item) else { return false }
         return sendPasteToLastApp()
+    }
+
+    /// Puts derived text (e.g. a Markdown link) on the clipboard without adding it to the history.
+    func copyTextToPasteboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        lastClipboardString = text
     }
 
     func pasteTextIntoLastApp(_ text: String) -> Bool {

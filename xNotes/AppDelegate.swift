@@ -265,12 +265,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 menu.addItem(clipboardHeader)
 
                 for item in latestItems {
-                    let firstLine = item.text.components(separatedBy: .newlines).first ?? ""
+                    let firstLine = item.displayText.components(separatedBy: .newlines).first ?? ""
                     let displayTitle = firstLine.isEmpty ? "(empty)" : String(firstLine.prefix(60))
                     let menuItem = NSMenuItem(title: displayTitle, action: #selector(pasteClipboardMenuItem(_:)), keyEquivalent: "")
                     menuItem.target = self
                     menuItem.representedObject = item.id
-                    menuItem.toolTip = item.isFileItem ? item.filePaths.joined(separator: "\n") : item.text
+                    if item.isFileItem {
+                        menuItem.toolTip = item.filePaths.joined(separator: "\n")
+                    } else if let title = item.linkTitle, let url = item.linkURL {
+                        menuItem.toolTip = "\(title)\n\(url.absoluteString)"
+                    } else {
+                        menuItem.toolTip = item.text
+                    }
 
                     var icon: NSImage?
                     if let firstPath = item.filePaths.first {
