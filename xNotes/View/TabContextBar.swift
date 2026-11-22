@@ -93,7 +93,7 @@ struct TabContextBar: View {
         case .note:
             // Refresh periodically so "2 minutes ago" keeps up without edits.
             TimelineView(.periodic(from: .now, by: 30)) { context in
-                Text("Edited \(relativeDate(tab.lastEditedAt, now: context.date))")
+                editedText(now: context.date)
                     .help(autoDeleteHint(now: context.date))
             }
         case .clipboard:
@@ -112,10 +112,22 @@ struct TabContextBar: View {
         return Self.relativeFormatter.localizedString(for: date, relativeTo: now)
     }
 
+    /// "Edited 5 days ago · deleted in 2 days" – the second part only for unlocked tabs,
+    /// in orange when little time is left.
+    private func editedText(now: Date) -> Text {
+        let edited = Text("Edited \(relativeDate(tab.lastEditedAt, now: now))")
+        guard let deadline = notesManager.autoDeleteDeadline(for: tab) else { return edited }
+        let soon = AutoDeleteFormat.isSoon(deadline, periodDays: notesManager.autoDeleteDays(), now: now)
+        let remaining = Text(" · deleted \(AutoDeleteFormat.relative(deadline, now: now))")
+            .foregroundColor(soon ? .orange : .secondary)
+        return edited + remaining
+    }
+
     private func autoDeleteHint(now: Date) -> String {
-        guard !tab.isLocked else { return "Locked – never deleted automatically" }
-        let deadline = tab.lastEditedAt.addingTimeInterval(TimeInterval(notesManager.autoDeleteDays() * 24 * 60 * 60))
-        return "Deleted automatically \(Self.relativeFormatter.localizedString(for: deadline, relativeTo: now)) unless edited or locked"
+        guard let deadline = notesManager.autoDeleteDeadline(for: tab) else {
+            return "Locked – never deleted automatically"
+        }
+        return "Deleted automatically \(AutoDeleteFormat.relative(deadline, now: now)) (\(AutoDeleteFormat.absolute(deadline))) unless edited or locked"
     }
 
     private static let relativeFormatter: RelativeDateTimeFormatter = {

@@ -48,6 +48,8 @@ struct SidebarView: View {
                             isSelected: notesManager.selectedTabId == tab.id,
                             borderRotationDegrees: notesManager.autoDeleteRotationDegrees(for: tab),
                             showsRainbowBorder: showsRainbowBorder,
+                            autoDeleteDeadline: notesManager.autoDeleteDeadline(for: tab),
+                            autoDeleteDays: notesManager.autoDeleteDays(),
                             onSelect: { notesManager.selectedTabId = tab.id },
                             onToggleLock: { onRequestToggleLock(tab) },
                             onClose: canClose(tab) ? { onRequestClose(tab) } : nil

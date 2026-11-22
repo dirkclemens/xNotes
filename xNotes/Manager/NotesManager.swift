@@ -369,6 +369,12 @@ class NotesManager: ObservableObject {
         return value
     }
 
+    /// When an unlocked note tab will be deleted automatically; nil for locked and special tabs.
+    func autoDeleteDeadline(for tab: NoteTab) -> Date? {
+        guard tab.kind == .note, !tab.isLocked else { return nil }
+        return tab.lastEditedAt.addingTimeInterval(TimeInterval(autoDeleteDays() * 24 * 60 * 60))
+    }
+
     func autoDeleteRotationDegrees(for tab: NoteTab, now: Date = Date()) -> Double {
         guard tab.kind == .note, !tab.isLocked else { return 0 }
         let days = autoDeleteDays()
