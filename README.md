@@ -66,6 +66,7 @@ Alternatively, right-click the app in Finder and choose "Open".
 - Duplicates are deduplicated; newest moves to top
 - Pinned items stay at the top and are not removable
 - Links show their page title (when the source app provides one, e.g. Safari) and domain; the context menu opens them or pastes/copies them as Markdown links `[Title](url)`, and "Append to Tab" adds them as Markdown links. If the title is unknown, these actions load the page once to read it (falling back to the domain) and keep it
+- Copied links are saved without tracking parameters (`utm_*`, `fbclid`, `gclid`, Amazon `ref=…` and similar); parameters a page needs are kept. Can be turned off in Settings ▸ Clipboard
 - Hover over an item to see its source app, time, copied formats and size
 - Passwords marked as sensitive by password managers, and copies from Apple's Passwords app or Keychain Access, are not recorded (Settings ▸ Clipboard ▸ Save Sensitive Entries); entries marked as temporary or auto-generated are never recorded ([nspasteboard.org](http://nspasteboard.org) convention)
 - Right-click an item for transformations and actions

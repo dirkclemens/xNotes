@@ -28,6 +28,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     var copiedLinkTitle: String?
     /// Set for image entries; the image itself is stored by `ClipboardImageStore`.
     let imageInfo: ClipboardImageInfo?
+    /// Tracking parameters removed from the copied link (see `LinkCleaner`).
+    let removedTrackingParameters: [String]
 
     init(
         id: UUID = UUID(),
@@ -42,7 +44,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         richTextFormats: [ClipboardRichTextStore.Format] = [],
         copiedLinkURL: String? = nil,
         copiedLinkTitle: String? = nil,
-        imageInfo: ClipboardImageInfo? = nil
+        imageInfo: ClipboardImageInfo? = nil,
+        removedTrackingParameters: [String] = []
     ) {
         self.id = id
         self.text = text
@@ -57,6 +60,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         self.copiedLinkURL = copiedLinkURL
         self.copiedLinkTitle = copiedLinkTitle
         self.imageInfo = imageInfo
+        self.removedTrackingParameters = removedTrackingParameters
     }
 
     var isImageItem: Bool { imageInfo != nil }
@@ -139,6 +143,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         case copiedLinkURL = "linkURL"
         case copiedLinkTitle = "linkTitle"
         case imageInfo
+        case removedTrackingParameters = "removedTracking"
     }
 
     init(from decoder: Decoder) throws {
@@ -156,6 +161,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         copiedLinkURL = try c.decodeIfPresent(String.self, forKey: .copiedLinkURL)
         copiedLinkTitle = try c.decodeIfPresent(String.self, forKey: .copiedLinkTitle)
         imageInfo = try c.decodeIfPresent(ClipboardImageInfo.self, forKey: .imageInfo)
+        removedTrackingParameters = try c.decodeIfPresent([String].self, forKey: .removedTrackingParameters) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -179,5 +185,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         try c.encodeIfPresent(copiedLinkURL, forKey: .copiedLinkURL)
         try c.encodeIfPresent(copiedLinkTitle, forKey: .copiedLinkTitle)
         try c.encodeIfPresent(imageInfo, forKey: .imageInfo)
+        if !removedTrackingParameters.isEmpty {
+            try c.encode(removedTrackingParameters, forKey: .removedTrackingParameters)
+        }
     }
 }

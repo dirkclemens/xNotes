@@ -472,13 +472,37 @@ class NotesManager: ObservableObject {
             return
         }
         lastClipboardString = trimmed
+
+        var entryText = trimmed
+        var richText = ClipboardRichTextStore.formats(on: pasteboard)
+        var link = ClipboardFormats.copiedLink(on: pasteboard)
+        var removedTracking: [String] = []
+        if cleanLinksEnabled {
+            if let cleaned = LinkCleaner.clean(text: trimmed) {
+                entryText = cleaned.url.absoluteString
+                removedTracking = cleaned.removed
+                // The formatted versions would still paste the original address.
+                richText = [:]
+            }
+            if let copied = link, let cleaned = LinkCleaner.clean(text: copied.url) {
+                link = (cleaned.url.absoluteString, copied.title)
+                removedTracking += cleaned.removed.filter { !removedTracking.contains($0) }
+            }
+        }
         appendClipboardItem(
-            trimmed,
+            entryText,
             sourceApp: sourceApp,
             pasteboardTypes: types,
-            richText: ClipboardRichTextStore.formats(on: pasteboard),
-            link: ClipboardFormats.copiedLink(on: pasteboard)
+            richText: richText,
+            link: link,
+            removedTracking: removedTracking
         )
+    }
+
+    static let clipboardCleanLinksKey = "clipboardCleanLinks"
+
+    private var cleanLinksEnabled: Bool {
+        UserDefaults.standard.object(forKey: Self.clipboardCleanLinksKey) as? Bool ?? true
     }
 
     private var saveImagesEnabled: Bool {
@@ -543,7 +567,8 @@ class NotesManager: ObservableObject {
         pasteboardTypes: [String],
         filePaths: [String] = [],
         richText: [ClipboardRichTextStore.Format: Data] = [:],
-        link: (url: String, title: String?)? = nil
+        link: (url: String, title: String?)? = nil,
+        removedTracking: [String] = []
     ) {
         guard let index = tabs.firstIndex(where: { $0.kind == .clipboard }) else { return }
         var items = tabs[index].clipboardItems
@@ -565,7 +590,8 @@ class NotesManager: ObservableObject {
                 filePaths: filePaths,
                 richTextFormats: ClipboardRichTextStore.Format.allCases.filter { richText[$0] != nil },
                 copiedLinkURL: link?.url,
-                copiedLinkTitle: link?.title
+                copiedLinkTitle: link?.title,
+                removedTrackingParameters: removedTracking
             ),
             at: 0
         )

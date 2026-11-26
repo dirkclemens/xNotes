@@ -328,6 +328,9 @@ struct ClipboardView: View {
         } else {
             if let url = item.linkURL {
                 info.append(linkInfo(for: url, hasTitle: item.linkTitle != nil))
+                if !item.removedTrackingParameters.isEmpty {
+                    info.append("Tracking removed: \(item.removedTrackingParameters.joined(separator: ", "))")
+                }
             } else {
                 info.append("Size: \(sizeDescription(for: item.text))")
             }
