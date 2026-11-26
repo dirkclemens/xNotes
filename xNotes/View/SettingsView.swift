@@ -6,6 +6,8 @@
 import SwiftUI
 import MarkdownEditorKit
 import AppKit
+import ApplicationServices
+import Combine
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
@@ -30,12 +32,43 @@ struct SettingsView: View {
     @AppStorage("hotkeyKeyCode") private var hotkeyKeyCode: Int = -1
     @AppStorage("hotkeyModifiers") private var hotkeyModifiers: Int = 0
     @AppStorage("hotkeyMode") private var hotkeyMode: String = PanelMode.full.rawValue
+    @AppStorage(HotkeyManager.triggerKey) private var hotkeyTrigger: String = HotkeyManager.Trigger.keyCombination.rawValue
+    @AppStorage(HotkeyManager.doubleTapModifierKey) private var hotkeyDoubleTapModifier: String = DoubleTapModifier.command.rawValue
+    /// Checked every second while the double-tap shortcut is selected, so the hint
+    /// disappears as soon as the permission is granted in System Settings.
+    @State private var hasAccessibilityPermission = ModifierDoubleTapDetector.hasPermission
     @AppStorage("textExpansionEnabled") private var textExpansionEnabled: Bool = false
     @AppStorage("tabAutoDeleteDays") private var tabAutoDeleteDays: Int = 7
     @AppStorage("tabRainbowBorder") private var tabRainbowBorder: Bool = true
     @AppStorage(NotesManager.clipboardSaveImagesKey) private var clipboardSaveImages: Bool = true
     @AppStorage(NotesManager.clipboardSaveSensitiveKey) private var clipboardSaveSensitive: Bool = false
     @AppStorage(AppDelegate.statusMenuClipboardCountKey) private var statusMenuClipboardCount: Int = AppDelegate.statusMenuClipboardCountDefault
+
+    @ViewBuilder
+    private var doubleTapSettings: some View {
+        Picker("Key", selection: $hotkeyDoubleTapModifier) {
+            ForEach(DoubleTapModifier.allCases) { modifier in
+                Text(modifier.displayName).tag(modifier.rawValue)
+            }
+        }
+        .pickerStyle(.menu)
+        .disabled(!hotkeyEnabled)
+        Text("Press the key twice quickly on its own. Shortcuts like ⌘C don't count. If Dictation or Siri is set to the same key in System Settings, both react.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        if hotkeyEnabled && !hasAccessibilityPermission {
+            HStack(alignment: .firstTextBaseline) {
+                Label("xNotes needs Accessibility access to notice the key presses.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                Spacer()
+                Button("Grant Access…") {
+                    let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as NSString: true]
+                    _ = AXIsProcessTrustedWithOptions(options)
+                }
+            }
+        }
+    }
 
     var body: some View {
         Form {
@@ -156,8 +189,18 @@ struct SettingsView: View {
 
             Section("Global Hotkey") {
                 Toggle("Enable global hotkey", isOn: $hotkeyEnabled)
-                HotkeyRecorderView(keyCode: $hotkeyKeyCode, modifiers: $hotkeyModifiers)
-                    .disabled(!hotkeyEnabled)
+                Picker("Shortcut", selection: $hotkeyTrigger) {
+                    Text("Key Combination").tag(HotkeyManager.Trigger.keyCombination.rawValue)
+                    Text("Press a Modifier Twice").tag(HotkeyManager.Trigger.doubleTap.rawValue)
+                }
+                .pickerStyle(.menu)
+                .disabled(!hotkeyEnabled)
+                if hotkeyTrigger == HotkeyManager.Trigger.doubleTap.rawValue {
+                    doubleTapSettings
+                } else {
+                    HotkeyRecorderView(keyCode: $hotkeyKeyCode, modifiers: $hotkeyModifiers)
+                        .disabled(!hotkeyEnabled)
+                }
                 Picker("Action", selection: $hotkeyMode) {
                     Text("Open Panel").tag(PanelMode.full.rawValue)
                     Text("Open Clipboard").tag(PanelMode.clipboard.rawValue)
@@ -225,6 +268,13 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .padding(1)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+            guard hotkeyTrigger == HotkeyManager.Trigger.doubleTap.rawValue else { return }
+            let trusted = ModifierDoubleTapDetector.hasPermission
+            if trusted != hasAccessibilityPermission {
+                hasAccessibilityPermission = trusted
+            }
+        }
         .onChange(of: textExpansionEnabled) { _, enabled in
             if enabled {
                 AppDelegate.sharedTextExpansionEngine?.start()

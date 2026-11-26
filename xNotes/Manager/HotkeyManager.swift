@@ -12,7 +12,18 @@ final class HotkeyManager {
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
     private var defaultsObserver: NSObjectProtocol?
+    private var activationObserver: NSObjectProtocol?
+    private var doubleTapDetector: ModifierDoubleTapDetector?
     private let handler: () -> Void
+
+    /// How the panel is opened: a key combination or a modifier pressed twice.
+    enum Trigger: String {
+        case keyCombination
+        case doubleTap
+    }
+
+    static let triggerKey = "hotkeyTrigger"
+    static let doubleTapModifierKey = "hotkeyDoubleTapModifier"
 
     init(handler: @escaping () -> Void) {
         self.handler = handler
@@ -31,6 +42,16 @@ final class HotkeyManager {
                 self?.refreshRegistration()
             }
         }
+        // Returning from System Settings: the Accessibility permission may have been granted.
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.doubleTapDetector?.start()
+            }
+        }
     }
 
     func stop() {
@@ -39,6 +60,11 @@ final class HotkeyManager {
             NotificationCenter.default.removeObserver(defaultsObserver)
             self.defaultsObserver = nil
         }
+        if let activationObserver {
+            NotificationCenter.default.removeObserver(activationObserver)
+            self.activationObserver = nil
+        }
+        stopDoubleTap()
     }
 
     private func refreshRegistration() {
@@ -46,13 +72,48 @@ final class HotkeyManager {
         let enabled = defaults.bool(forKey: "hotkeyEnabled")
         let keyCode = (defaults.object(forKey: "hotkeyKeyCode") as? Int) ?? -1
         let modifiers = (defaults.object(forKey: "hotkeyModifiers") as? Int) ?? 0
+        let trigger = defaults.string(forKey: Self.triggerKey).flatMap(Trigger.init) ?? .keyCombination
 
-        guard enabled, keyCode >= 0, modifiers != 0 else {
+        guard enabled else {
             unregister()
+            stopDoubleTap()
             return
         }
 
-        register(keyCode: UInt32(keyCode), modifiers: carbonModifiers(from: modifiers))
+        switch trigger {
+        case .doubleTap:
+            unregister()
+            let modifier = defaults.string(forKey: Self.doubleTapModifierKey).flatMap(DoubleTapModifier.init) ?? .command
+            startDoubleTap(modifier: modifier)
+        case .keyCombination:
+            stopDoubleTap()
+            guard keyCode >= 0, modifiers != 0 else {
+                unregister()
+                return
+            }
+            // Defaults change often (any setting); only re-register when needed.
+            let combination = (UInt32(keyCode), carbonModifiers(from: modifiers))
+            if hotKeyRef != nil, registeredCombination.map({ $0 == combination }) == true { return }
+            register(keyCode: combination.0, modifiers: combination.1)
+            registeredCombination = combination
+        }
+    }
+
+    private var registeredCombination: (UInt32, UInt32)?
+
+    private func startDoubleTap(modifier: DoubleTapModifier) {
+        if doubleTapDetector?.modifier != modifier {
+            doubleTapDetector?.stop()
+            doubleTapDetector = ModifierDoubleTapDetector(modifier: modifier) { [weak self] in
+                self?.handler()
+            }
+        }
+        doubleTapDetector?.start()
+    }
+
+    private func stopDoubleTap() {
+        doubleTapDetector?.stop()
+        doubleTapDetector = nil
     }
 
     private func register(keyCode: UInt32, modifiers: UInt32) {
@@ -73,6 +134,7 @@ final class HotkeyManager {
     }
 
     private func unregister() {
+        registeredCombination = nil
         if let hotKeyRef {
             UnregisterEventHotKey(hotKeyRef)
             self.hotKeyRef = nil
