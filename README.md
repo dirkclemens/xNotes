@@ -104,6 +104,7 @@ Plugins run in an isolated JavaScript context without file or network access and
 - `⇧⌘G` previous result
 - `Esc` close search, then close the panel
 - Right‑click the menu bar icon for the latest clipboard entries and Quit (number of entries: Settings ▸ Clipboard)
+- Global hotkey (Settings ▸ Global Hotkey) opens the panel or the clipboard from any app: a key combination, or a modifier key (⌘, ⌥, ⌃ or ⇧) pressed twice
 
 ### Export & Backup
 In Settings ▸ Export & Backup:
@@ -113,6 +114,7 @@ In Settings ▸ Export & Backup:
 
 ### Permissions
 - Pasting into other apps requires Accessibility permission for xNotes.
+- The global hotkey "press a modifier twice" also requires Accessibility permission.
 
 ## Notes
 - Notes and clipboard history are stored locally in `~/Library/Application Support/de.adcore.xNotes/tabs.json`. Versions before 1.1 used `UserDefaults` (key `savedNotes`); the data is migrated automatically on first launch.
