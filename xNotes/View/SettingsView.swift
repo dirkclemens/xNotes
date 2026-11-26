@@ -23,6 +23,8 @@ struct SettingsView: View {
     @AppStorage("editorShowsLineNumbers") private var editorShowsLineNumbers: Bool = false
     @AppStorage("clipboardMaxItems") private var clipboardMaxItems: Int = 200
     @AppStorage("clipboardLineLimit") private var clipboardLineLimit: Int = 4
+    @AppStorage(ClipboardRowMetrics.fontSizeKey) private var clipboardFontSize: Double = ClipboardRowMetrics.defaultFontSize
+    @AppStorage("clipboardShowsScrollBar") private var clipboardShowsScrollBar = true
     @AppStorage("pasteAsPlainText") private var pasteAsPlainText: Bool = false
     @AppStorage("pasteNormalizeLF") private var pasteNormalizeLF: Bool = true
     @AppStorage("pasteTrimTrailingWhitespace") private var pasteTrimTrailingWhitespace: Bool = true
@@ -110,6 +112,17 @@ struct SettingsView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+
+                Stepper(value: $clipboardFontSize, in: ClipboardRowMetrics.fontSizeRange, step: 1) {
+                    HStack {
+                        Text("Font Size")
+                        Spacer()
+                        Text("\(Int(clipboardFontSize)) pt")
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Toggle("Show Scroll Bar", isOn: $clipboardShowsScrollBar)
 
                 Stepper(value: $clipboardLineLimit, in: 1...12, step: 1) {
                     HStack {

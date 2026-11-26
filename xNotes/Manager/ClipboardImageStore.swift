@@ -122,6 +122,18 @@ final class ClipboardImageStore {
         return image
     }
 
+    /// Downscaled image for the hover preview. Decoding a large screenshot takes a moment,
+    /// so this runs off the main thread.
+    nonisolated static func previewImage(at url: URL, maxPixels: Int) -> CGImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixels,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    }
+
     /// Deletes the images of entries that are gone.
     func removeAll(except keptIds: Set<UUID>) {
         guard let files = try? FileManager.default.contentsOfDirectory(at: folderURL, includingPropertiesForKeys: nil) else {
