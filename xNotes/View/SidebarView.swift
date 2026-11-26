@@ -99,6 +99,7 @@ struct SidebarView: View {
         .padding(.vertical, 10)
         .frame(width: Self.width)
         .frame(maxHeight: .infinity)
+        .background(WindowDragArea(isEnabled: keepWindowOpen))
         .background(Color.tabStripBackground)
     }
 

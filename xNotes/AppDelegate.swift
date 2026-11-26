@@ -22,6 +22,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var textExpansionStore = TextExpansionStore.shared
     private var windowLevelStateSettings = WindowLevelStateSettings()
     private var keepWindowOpenCancellable: AnyCancellable? // <-- Fix: retain Combine subscription
+    /// Set while the app itself places the panel, so only moves by the user are remembered.
+    private var isPositioningPanel = false
+    /// Top-left corner of the panel after the user moved it while it stays on top.
+    private static let pinnedPanelTopLeftKey = "pinnedPanelTopLeft"
     
     private var hotkeyManager: HotkeyManager?
     static let closePopoverNotification = Notification.Name("xNotesClosePopover")
@@ -98,6 +102,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         keepWindowOpenCancellable = windowLevelStateSettings.$keepWindowOpen.sink { [weak self] newValue in
             guard let self = self, let panel = self.panel else { return }
             panel.level = newValue ? .floating : .normal
+            if !newValue {
+                // Unpinned: the panel opens below the menu bar icon again.
+                UserDefaults.standard.removeObject(forKey: Self.pinnedPanelTopLeftKey)
+            }
             if panel.isVisible {
                 if newValue {
                     self.removeDismissMonitors()
@@ -150,6 +158,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         newPanel.minSize = NSSize(width: 620, height: 480)
         newPanel.setFrameAutosaveName("xNotesPanelFrame")
         newPanel.contentViewController = hostingController
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(panelDidMove),
+            name: NSWindow.didMoveNotification,
+            object: newPanel
+        )
         
         newPanel.isOpaque = false
         newPanel.hasShadow = true
@@ -178,9 +192,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             x = min(max(x, visible.minX), visible.maxX - panelSize.width)
             y = min(max(y, visible.minY), visible.maxY - panelSize.height)
         }
+        if keepOpen, let origin = pinnedPanelOrigin(for: panelSize) {
+            x = origin.x
+            y = origin.y
+        }
 
         panel.level = keepOpen ? .floating : .normal
-        panel.setFrame(NSRect(x: x, y: y, width: panelSize.width, height: panelSize.height), display: true)
+        setPanelFrame(NSRect(x: x, y: y, width: panelSize.width, height: panelSize.height))
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         panel.makeFirstResponder(self.hostingController?.view)
@@ -215,7 +233,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         panel.level = keepOpen ? .floating : .normal
-        panel.setFrame(NSRect(x: x, y: y, width: panelSize.width, height: panelSize.height), display: true)
+        setPanelFrame(NSRect(x: x, y: y, width: panelSize.width, height: panelSize.height))
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         panel.makeFirstResponder(self.hostingController?.view)
@@ -223,6 +241,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if !keepOpen {
             installDismissMonitors()
         }
+    }
+
+    private func setPanelFrame(_ frame: NSRect) {
+        isPositioningPanel = true
+        panel?.setFrame(frame, display: true)
+        isPositioningPanel = false
+    }
+
+    /// Remembers where the user dragged the panel while it stays on top.
+    @objc private func panelDidMove(_ notification: Notification) {
+        guard !isPositioningPanel, windowLevelStateSettings.keepWindowOpen,
+              let panel, panel.isVisible else { return }
+        let topLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+        UserDefaults.standard.set(NSStringFromPoint(topLeft), forKey: Self.pinnedPanelTopLeftKey)
+    }
+
+    /// Origin for the remembered position, kept on a screen that still exists.
+    private func pinnedPanelOrigin(for size: NSSize) -> NSPoint? {
+        guard let stored = UserDefaults.standard.string(forKey: Self.pinnedPanelTopLeftKey) else { return nil }
+        let topLeft = NSPointFromString(stored)
+        let frame = NSRect(x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height)
+        guard let screen = NSScreen.screens.max(by: {
+            $0.visibleFrame.intersection(frame).area < $1.visibleFrame.intersection(frame).area
+        }), screen.visibleFrame.intersects(frame) else { return nil }
+        let visible = screen.visibleFrame
+        return NSPoint(
+            x: min(max(frame.minX, visible.minX), visible.maxX - size.width),
+            y: min(max(frame.minY, visible.minY), visible.maxY - size.height)
+        )
     }
 
     private func handleHotkeyTriggered() {
@@ -365,4 +412,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
               let item = notesManager.clipboardItem(id: id) else { return }
         _ = notesManager.pasteClipboardItemIntoLastApp(item)
     }
+}
+
+private extension NSRect {
+    var area: CGFloat { isNull ? 0 : width * height }
 }

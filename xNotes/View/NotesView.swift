@@ -63,6 +63,7 @@ struct NotesView: View {
                                 onRequestClose: { pendingConfirmation = .delete($0) },
                                 onRequestToggleLock: toggleLock
                             )
+                            .background(WindowDragArea(isEnabled: keepWindowOpen.wrappedValue))
                         }
 
                         if isSearchVisible {
