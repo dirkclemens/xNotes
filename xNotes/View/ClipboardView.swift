@@ -17,9 +17,11 @@ struct ClipboardView: View {
     @State private var pendingSelection: ClipboardItem.ID?
     @State private var editItem: ClipboardItem?
     @AppStorage("pasteAsPlainText") private var pasteAsPlainText = false
-    /// Row under the mouse. Its tooltip is rebuilt on hover so file checks are current.
-    @State private var hoveredItemId: ClipboardItem.ID?
     @AppStorage("clipboardLineLimit") private var clipboardLineLimit: Int = 4
+    @AppStorage(ClipboardRowMetrics.fontSizeKey) private var fontSize: Double = ClipboardRowMetrics.defaultFontSize
+    @AppStorage("clipboardShowsScrollBar") private var showsScrollBar = true
+
+    private var metrics: ClipboardRowMetrics { ClipboardRowMetrics(fontSize: fontSize) }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -30,6 +32,9 @@ struct ClipboardView: View {
                 .onChange(of: highlightedItemId) { _, _ in
                     revealHighlightedItem(using: proxy)
                 }
+        }
+        .onDisappear {
+            ClipboardPreviewController.shared.hide()
         }
         .overlay(alignment: .bottom) {
             if let message = transformRegistry.message {
@@ -54,15 +59,16 @@ struct ClipboardView: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Image(nsImage: sourceAppIcon(for: item))
                     .resizable()
-                    .frame(width: 14, height: 14)
-                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+                    .frame(width: metrics.iconSize, height: metrics.iconSize)
+                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] - metrics.baselineOffset }
+                    .padding(.trailing, metrics.iconGap)
                 if let slot = item.pinnedSlot {
                     Text("\(slot)")
-                        .font(.system(size: 9, weight: .bold))
-                        .frame(width: 14, height: 14)
+                        .font(.system(size: metrics.symbolSize, weight: .bold))
+                        .frame(width: metrics.iconSize, height: metrics.iconSize)
                         .foregroundColor(.white)
                         .background(Circle().fill(Color.accentColor))
-                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - metrics.baselineOffset }
                 }
                 if item.isImageItem {
                     imageThumbnail(for: item)
@@ -70,45 +76,49 @@ struct ClipboardView: View {
                 if let firstPath = item.filePaths.first {
                     Image(nsImage: NSWorkspace.shared.icon(forFile: firstPath))
                         .resizable()
-                        .frame(width: 14, height: 14)
-                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+                        .frame(width: metrics.iconSize, height: metrics.iconSize)
+                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - metrics.baselineOffset }
                 }
                 if item.isLink {
                     Image(systemName: "link")
-                        .font(.system(size: 9))
+                        .font(.system(size: metrics.symbolSize))
                         .foregroundStyle(.secondary)
-                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - metrics.baselineOffset }
                 }
                 if item.canPasteRichText {
                     Image(systemName: "textformat")
-                        .font(.system(size: 9))
+                        .font(.system(size: metrics.symbolSize))
                         .foregroundStyle(.secondary)
-                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - metrics.baselineOffset }
                 }
                 if item.isSensitive {
                     Image(systemName: "key.fill")
-                        .font(.system(size: 9))
+                        .font(.system(size: metrics.symbolSize))
                         .foregroundStyle(.orange)
-                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - metrics.baselineOffset }
                 }
                 rowText(for: item)
-                    .font(.system(size: 12))
+                    .font(.system(size: metrics.fontSize))
                     .lineLimit(clipboardLineLimit)
             }
-            .help(tooltipText(for: item))
-            .onHover { hovering in
-                if hovering {
-                    hoveredItemId = item.id
-                } else if hoveredItemId == item.id {
-                    hoveredItemId = nil
-                }
-            }
+            // Whole row width, so the preview also shows right of short text.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
-            .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
+            .onHover { hovering in
+                updatePreview(for: item, hovering: hovering)
+            }
+            .listRowInsets(EdgeInsets(top: 1, leading: 0, bottom: 1, trailing: 10))
         }
         .listStyle(.inset)
-        .environment(\.defaultMinListRowHeight, 18)
+        // `.never` also hides the bar when "Show scroll bars: Always" is set in System Settings.
+        .scrollIndicators(showsScrollBar ? .automatic : .never)
+        // Keeps rows and scroll bar away from the window's rounded corner.
+        .padding(.trailing, 6)
+        .padding(.bottom, 10)
+        .environment(\.defaultMinListRowHeight, metrics.rowHeight)
         .focusable(true)
+        // The selection already shows focus; the ring would frame the padded list.
+        .focusEffectDisabled()
         .sheet(item: $editItem) { item in
             EditClipboardItemView(item: item)
         }
@@ -298,62 +308,6 @@ struct ClipboardView: View {
         }
     }
 
-    private func tooltipText(for item: ClipboardItem) -> String {
-        var info: [String] = []
-        if item.isMarkedConcealed {
-            info.append("⚠︎ Sensitive: marked as a password by the source app")
-        } else if item.isFromPasswordApp {
-            info.append("⚠︎ Sensitive: copied from a password app")
-        }
-        info.append("Source: \(item.sourceAppName ?? "Unknown")")
-        if let bundleId = item.sourceAppBundleId {
-            info.append("App ID: \(bundleId)")
-        }
-        info.append("Copied: \(Self.tooltipDateFormatter.string(from: item.date))")
-        let formats = ClipboardFormats.displayNames(for: item.pasteboardTypes)
-        if !formats.isEmpty {
-            info.append("Formats: \(formats.joined(separator: ", "))")
-        }
-        if let image = item.imageInfo {
-            let size = ByteCountFormatter.string(fromByteCount: Int64(image.byteCount), countStyle: .file)
-            info.append("Image: \(image.width) × \(image.height) pixels, stored as PNG (\(size))")
-            info.append("Copied as: \(image.originalFormat)")
-        } else if item.isFileItem {
-            // Checking the files touches the disk, so only for the row under the mouse.
-            if hoveredItemId == item.id {
-                info.append(contentsOf: fileInfoLines(for: item))
-            } else {
-                info.append("\(item.filePaths.count) \(item.filePaths.count == 1 ? "file" : "files")")
-            }
-        } else {
-            if let url = item.linkURL {
-                info.append(linkInfo(for: url, hasTitle: item.linkTitle != nil))
-            } else {
-                info.append("Size: \(sizeDescription(for: item.text))")
-            }
-            if let formatting = formattingInfo(for: item) {
-                info.append(formatting)
-            }
-        }
-        if item.text != item.originalText {
-            info.append("Edited or transformed (original shown above)")
-        }
-        if let slot = item.pinnedSlot {
-            info.append("Pinned to slot \(slot) (⌥\(slot))")
-        }
-        let content: String
-        if item.isImageItem {
-            content = "Image"
-        } else if item.isFileItem {
-            content = item.filePaths.joined(separator: "\n")
-        } else if let title = item.linkTitle, let url = item.linkURL {
-            content = "\(title)\n\(url.absoluteString)"
-        } else {
-            content = item.originalText
-        }
-        return "\(content)\n────────────────────\n\(info.joined(separator: "\n"))"
-    }
-
     /// Small preview of an image entry; falls back to a symbol if the file is missing.
     @ViewBuilder
     private func imageThumbnail(for item: ClipboardItem) -> some View {
@@ -361,15 +315,16 @@ struct ClipboardView: View {
             Image(nsImage: thumbnail)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: 64, maxHeight: 36, alignment: .leading)
+                .frame(maxWidth: metrics.thumbnailSize.width, maxHeight: metrics.thumbnailSize.height, alignment: .leading)
                 .clipShape(RoundedRectangle(cornerRadius: 3))
                 .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(Color.secondary.opacity(0.3), lineWidth: 0.5))
                 // Text baseline slightly below the middle, so icon and text sit vertically centered.
-                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + metrics.fontSize / 3 }
         } else {
             Image(systemName: "photo")
+                .font(.system(size: metrics.fontSize))
                 .foregroundStyle(.secondary)
-                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - metrics.baselineOffset }
         }
     }
 
@@ -429,79 +384,6 @@ struct ClipboardView: View {
         return Text(title) + Text("  \(host)").foregroundColor(.secondary)
     }
 
-    private func linkInfo(for url: URL, hasTitle: Bool) -> String {
-        var parts = ["Link to \(url.host ?? url.absoluteString)"]
-        if url.scheme?.lowercased() == "http" {
-            parts.append("not encrypted (http)")
-        }
-        if !hasTitle {
-            parts.append("no title")
-        }
-        return parts.joined(separator: ", ")
-    }
-
-    /// Which formatted versions are kept and whether a paste uses them.
-    private func formattingInfo(for item: ClipboardItem) -> String? {
-        guard !item.richTextFormats.isEmpty else { return nil }
-        let formats = item.richTextFormats.map { format -> String in
-            // File sizes only for the row under the mouse (disk access).
-            guard hoveredItemId == item.id,
-                  let bytes = notesManager.richTextStore.byteCount(format: format, for: item.id) else {
-                return format.displayName
-            }
-            return "\(format.displayName) \(ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file))"
-        }.joined(separator: ", ")
-        let usage: String
-        if !item.canPasteRichText {
-            usage = "not used, the text was edited"
-        } else if pasteAsPlainText {
-            usage = "Paste as Plain Text is on"
-        } else {
-            usage = "pastes with formatting"
-        }
-        return "Formatting: \(formats) – \(usage)"
-    }
-
-    /// Kind and size per file, or a note when it no longer exists.
-    private func fileInfoLines(for item: ClipboardItem) -> [String] {
-        let keys: Set<URLResourceKey> = [.localizedTypeDescriptionKey, .fileSizeKey, .isDirectoryKey]
-        var lines = ["\(item.filePaths.count) \(item.filePaths.count == 1 ? "file" : "files"):"]
-        var missing = 0
-        for url in item.fileURLs.prefix(10) {
-            guard let values = try? url.resourceValues(forKeys: keys) else {
-                missing += 1
-                lines.append("  \(url.lastPathComponent) – no longer exists")
-                continue
-            }
-            var details = [values.localizedTypeDescription ?? (values.isDirectory == true ? "Folder" : "File")]
-            if values.isDirectory != true, let size = values.fileSize {
-                details.append(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
-            }
-            lines.append("  \(url.lastPathComponent) – \(details.joined(separator: ", "))")
-        }
-        if item.filePaths.count > 10 {
-            lines.append("  … and \(item.filePaths.count - 10) more")
-        }
-        if missing > 0 {
-            lines.append("⚠︎ Missing files can't be pasted")
-        }
-        return lines
-    }
-
-    private func sizeDescription(for text: String) -> String {
-        let characters = text.count
-        let lines = text.reduce(into: 1) { count, character in
-            if character.isNewline { count += 1 }
-        }
-        let words = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
-        var parts = ["\(characters) \(characters == 1 ? "character" : "characters")"]
-        parts.append("\(words) \(words == 1 ? "word" : "words")")
-        if lines > 1 {
-            parts.append("\(lines) lines")
-        }
-        return parts.joined(separator: ", ")
-    }
-
     private var noteTabs: [NoteTab] {
         notesManager.tabs.filter { $0.kind == .note }
     }
@@ -517,14 +399,19 @@ struct ClipboardView: View {
         return nil
     }
 
-    private var tooltipDateFormatter: DateFormatter { Self.tooltipDateFormatter }
-
-    private static let tooltipDateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .medium
-        f.timeStyle = .medium
-        return f
-    }()
+    /// Shows the hover preview (instead of a tooltip) for the row under the mouse.
+    private func updatePreview(for item: ClipboardItem, hovering: Bool) {
+        let preview = ClipboardPreviewController.shared
+        guard hovering else {
+            preview.hoverEnded(itemId: item.id)
+            return
+        }
+        preview.hoverBegan(itemId: item.id) { [notesManager, pasteAsPlainText] in
+            // The entry may have changed since (title fetched, edited).
+            let current = notesManager.clipboardItem(id: item.id) ?? item
+            return AnyView(ClipboardItemPreview(item: current, notesManager: notesManager, pasteAsPlainText: pasteAsPlainText))
+        }
+    }
 
     private func sourceAppIcon(for item: ClipboardItem) -> NSImage {
         if let bundleId = item.sourceAppBundleId,
@@ -533,6 +420,34 @@ struct ClipboardView: View {
         }
         return NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "Clipboard") ?? NSImage()
     }
+}
+
+/// Sizes of a clipboard list row, all derived from the font size set in Settings,
+/// so row height, icons and thumbnails grow with the text. 12 pt is the original layout.
+struct ClipboardRowMetrics {
+    static let fontSizeKey = "clipboardFontSize"
+    static let defaultFontSize: Double = 12
+    static let fontSizeRange: ClosedRange<Double> = 10...24
+
+    let fontSize: CGFloat
+
+    init(fontSize: Double) {
+        self.fontSize = CGFloat(min(max(fontSize, Self.fontSizeRange.lowerBound), Self.fontSizeRange.upperBound))
+    }
+
+    private var scale: CGFloat { fontSize / CGFloat(Self.defaultFontSize) }
+
+    /// Minimum row height: one and a half times the text size (18 pt at 12 pt).
+    var rowHeight: CGFloat { (fontSize * 1.5).rounded() }
+    /// App and file icons.
+    var iconSize: CGFloat { (14 * scale).rounded() }
+    /// Small markers (pin number, link, formatting, key).
+    var symbolSize: CGFloat { (9 * scale).rounded() }
+    /// Extra space between the source app icon and what follows it.
+    var iconGap: CGFloat { (3 * scale).rounded() }
+    /// Lifts icons so they sit centered on the first text line.
+    var baselineOffset: CGFloat { 3 * scale }
+    var thumbnailSize: CGSize { CGSize(width: 64 * scale, height: 36 * scale) }
 }
 
 /// Short, non-blocking feedback after running a transform (errors, "no change", plugin reload).

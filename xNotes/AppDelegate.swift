@@ -280,6 +280,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func closePanel() {
+        ClipboardPreviewController.shared.hide()
         panel?.orderOut(nil)
         removeDismissMonitors()
     }
