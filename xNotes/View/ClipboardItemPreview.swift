@@ -463,6 +463,9 @@ struct ClipboardItemPreview: View {
         } else if item.isTextItem {
             if let url = item.linkURL {
                 rows.append(DetailRow(label: "Link", value: linkInfo(for: url)))
+                if !item.removedTrackingParameters.isEmpty {
+                    rows.append(DetailRow(label: "Cleaned", value: "Tracking removed: " + item.removedTrackingParameters.joined(separator: ", ")))
+                }
             } else {
                 rows.append(DetailRow(label: "Size", value: sizeDescription(for: item.text)))
             }

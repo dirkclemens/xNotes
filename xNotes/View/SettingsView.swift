@@ -44,6 +44,7 @@ struct SettingsView: View {
     @AppStorage("tabRainbowBorder") private var tabRainbowBorder: Bool = true
     @AppStorage(NotesManager.clipboardSaveImagesKey) private var clipboardSaveImages: Bool = true
     @AppStorage(NotesManager.clipboardSaveSensitiveKey) private var clipboardSaveSensitive: Bool = false
+    @AppStorage(NotesManager.clipboardCleanLinksKey) private var clipboardCleanLinks: Bool = true
     @AppStorage(AppDelegate.statusMenuClipboardCountKey) private var statusMenuClipboardCount: Int = AppDelegate.statusMenuClipboardCountDefault
 
     @ViewBuilder
@@ -178,6 +179,11 @@ struct SettingsView: View {
 
                 Toggle("Save Images", isOn: $clipboardSaveImages)
                 Text("Screenshots and copied images are kept as PNG files (up to 30 MB each). They are not included in backups.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle("Remove Tracking from Links", isOn: $clipboardCleanLinks)
+                Text("Copied links are saved without tracking parameters such as utm_source or fbclid. Parameters a page needs (video, search term, page) are kept.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
